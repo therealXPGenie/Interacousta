@@ -1,0 +1,3057 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#1c1c1e">
+<meta name="color-scheme" content="dark">
+<title>Interacousta — Internet of Sounds</title>
+<style>
+  :root {
+    --bg: #000000; --surface: #1c1c1e; --text: #f5f5f7; --muted: #98989d;
+    --border: #38383a; --blue: #0a84ff; --green: #30d158; --orange: #ff9f0a; --red: #ff453a;
+    --titlebar: #2c2c2e; --tab-inactive: #2c2c2e; --tab-active: #1c1c1e;
+    --input-bg: #2c2c2e; --chip-bg: #2c2c2e; --sheet-bg: #2c2c2e;
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: "SF Mono", Menlo, Consolas, "Courier New", monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); -webkit-font-smoothing: antialiased; color-scheme: dark; }
+  button, input, select, textarea { font: inherit; }
+  button { cursor: pointer; }
+
+  .app { min-height: 100vh; display: flex; flex-direction: column; }
+  .window { flex: 1; background: var(--surface); display: flex; flex-direction: column; min-height: 100vh; }
+
+  .titlebar {
+    display: flex; align-items: flex-end; gap: 8px; min-height: 42px; padding: 0 10px 0 12px;
+    background: linear-gradient(180deg, #3a3a3c, #2c2c2e); border-bottom: 1px solid #1a1a1c; user-select: none;
+  }
+  .traffic { display: flex; gap: 7px; align-items: center; padding-bottom: 14px; flex-shrink: 0; }
+  .traffic i {
+    width: 12px; height: 12px; border-radius: 50%; background: #636366;
+    box-shadow: inset 0 0 0 .5px rgba(0,0,0,.15); transition: background .12s, box-shadow .12s;
+  }
+  .traffic .ready.on { background: #28c840; box-shadow: 0 0 0 2px rgba(40,200,64,.35), inset 0 0 0 .5px rgba(0,0,0,.1); }
+  .traffic .tx.on { background: #febc2e; box-shadow: 0 0 0 2px rgba(254,188,46,.4), inset 0 0 0 .5px rgba(0,0,0,.1); }
+  .traffic .rx.on { background: #ff5f57; box-shadow: 0 0 0 2px rgba(255,95,87,.4), inset 0 0 0 .5px rgba(0,0,0,.1); }
+  .tabs { display: flex; align-items: flex-end; gap: 2px; flex: 0 1 auto; min-width: 0; max-width: calc(100% - 48px); overflow-x: auto; padding-top: 10px; }
+  .tab {
+    display: flex; align-items: center; gap: 6px; min-width: 0; max-width: 180px; height: 30px;
+    padding: 0 8px 0 10px; background: var(--tab-inactive); color: var(--muted); border-radius: 8px 8px 0 0;
+    font-size: 12px; font-weight: 500; cursor: pointer; flex-shrink: 0;
+  }
+  .tab.active { background: var(--tab-active); color: var(--text); z-index: 1; box-shadow: 0 -1px 0 #48484a; }
+  .tab .fav {
+    width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0;
+    background: transparent; display: grid; place-items: center; overflow: hidden;
+  }
+  .tab b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+  .tab .x {
+    width: 16px; height: 16px; border: 0; border-radius: 4px; background: transparent;
+    color: var(--muted); font-size: 13px; line-height: 1; padding: 0; flex-shrink: 0; opacity: .7;
+  }
+  .tab .x:hover { background: rgba(255,255,255,.1); opacity: 1; color: var(--text); }
+  .tab-add {
+    width: 28px; height: 28px; margin: 0 0 1px 2px; border: 0; border-radius: 6px;
+    background: transparent; color: var(--muted); font-size: 18px; line-height: 1;
+    flex-shrink: 0; align-self: flex-end;
+  }
+  .tab-add:hover { background: rgba(255,255,255,.08); color: var(--text); }
+
+  .toolbar {
+    display: flex; align-items: center; gap: 6px; padding: 8px 10px; background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .toolbar button.nav {
+    width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent;
+    color: var(--muted); font-size: 15px;
+  }
+  .toolbar button.nav:hover { background: #3a3a3c; color: var(--text); }
+  .address {
+    flex: 1; height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 10px;
+    background: var(--input-bg); border-radius: 9px; border: 1px solid transparent;
+  }
+  .address:focus-within { background: #3a3a3c; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(10,132,255,.25); }
+  .address .lock { font-size: 10px; font-weight: 600; color: var(--green); letter-spacing: .3px; }
+  .address input {
+    flex: 1; border: 0; outline: 0; background: transparent; font-size: 13px;
+    text-align: center; color: var(--text);
+  }
+  .address input:focus { text-align: left; }
+  .toolbar .gear {
+    width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent;
+    color: var(--muted); font-size: 16px;
+  }
+  .toolbar .gear:hover { background: #3a3a3c; color: var(--text); }
+  .toolbar button.nav#fav-toggle { font-size: 14px; color: var(--muted); }
+  .toolbar button.nav#fav-toggle.active { color: var(--orange); }
+
+  .bm-bar {
+    display: none; align-items: center; gap: 4px; padding: 4px 10px; background: #1a1a1c;
+    border-bottom: 1px solid var(--border); overflow-x: auto; flex-shrink: 0;
+  }
+  .bm-bar.open { display: flex; }
+  .bm-btn {
+    height: 22px; padding: 0 10px; border-radius: 6px; border: 1px solid transparent;
+    background: transparent; font-size: 12px; font-weight: 500; color: var(--muted);
+    white-space: nowrap; flex-shrink: 0;
+  }
+  .bm-btn:hover { background: #3a3a3c; color: var(--text); }
+
+  .xfer-bar {
+    display: none; align-items: center; gap: 10px; padding: 6px 14px; background: #1a1a1c;
+    border-bottom: 1px solid var(--border); font-size: 11px; color: var(--muted); flex-shrink: 0;
+  }
+  .xfer-bar.on { display: flex; }
+  .xfer-bar .phase { color: var(--text); font-weight: 600; }
+  .xfer-track { flex: 1; height: 4px; background: #3a3a3c; border-radius: 2px; overflow: hidden; }
+  .xfer-fill { height: 100%; width: 0%; background: var(--blue); border-radius: 2px; transition: width .25s ease; }
+
+  .page { flex: 1; display: flex; flex-direction: column; min-height: 0; background: var(--surface); }
+  .welcome {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 40px 24px; text-align: center;
+  }
+  .welcome[hidden] { display: none !important; }
+  .welcome-icon {
+    width: 72px; height: 72px; border-radius: 18px; margin-bottom: 18px;
+    background: #2c2c2e; display: grid; place-items: center; overflow: hidden;
+    box-shadow: 0 0 0 1px rgba(255,255,255,.06), 0 8px 24px rgba(0,0,0,.4);
+  }
+  .welcome-icon img { width: 56px; height: 56px; object-fit: contain; filter: invert(1); }
+  .welcome h1 {
+    margin: 0; font-size: clamp(24px, 4vw, 34px); font-weight: 700;
+    letter-spacing: -.6px; line-height: 1.15;
+  }
+  .welcome h1 em { color: var(--green); font-style: normal; }
+  .welcome .alias {
+    margin: 6px 0 0; font-size: 13px; font-weight: 600; letter-spacing: .8px;
+    color: var(--muted); text-transform: uppercase;
+  }
+  .welcome p { margin: 12px 0 0; max-width: 420px; font-size: 14px; line-height: 1.5; color: var(--muted); }
+  .welcome .chips { display: flex; gap: 8px; margin-top: 22px; flex-wrap: wrap; justify-content: center; }
+  .welcome .chips button {
+    padding: 9px 14px; border-radius: 980px; border: 1px solid #48484a; background: var(--chip-bg);
+    font-size: 13px; font-weight: 500; color: var(--text);
+  }
+  .welcome .chips button:hover { background: #3a3a3c; }
+
+  .embedded { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .embedded[hidden] { display: none !important; }
+  .viewport { flex: 1; overflow: auto; padding: 24px clamp(14px, 4vw, 40px); }
+  .viewport-loading {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 12px; min-height: 280px; color: var(--muted); font-size: 13px;
+  }
+  .viewport-loading::before {
+    content: ''; width: 28px; height: 28px; border-radius: 50%;
+    border: 2px solid #3a3a3c; border-top-color: var(--blue);
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .doc { max-width: 820px; margin: 0 auto; padding-bottom: 48px; }
+  .doc h3 { margin: 0 0 12px; font-size: clamp(22px, 3.2vw, 32px); font-weight: 700; letter-spacing: -.4px; }
+  .doc-body h2 { margin: 22px 0 8px; font-size: 18px; font-weight: 600; }
+  .doc-body p { margin: 0 0 12px; font-size: 15px; line-height: 1.65; color: #d1d1d6; }
+  .doc-body ul { margin: 8px 0 14px; padding-left: 22px; font-size: 15px; line-height: 1.65; color: #d1d1d6; }
+  .doc-body a { color: var(--blue); text-decoration: none; }
+  .doc-body a:hover { text-decoration: underline; }
+  .doc-body code { font-family: var(--mono); font-size: 0.92em; background: #2c2c2e; padding: 1px 5px; border-radius: 4px; color: #e5e5ea; }
+  .sstv-gallery { margin-top: 26px; padding-top: 16px; border-top: 1px solid var(--border); }
+  .sstv-gallery h4 { margin: 0 0 10px; font-size: 13px; font-weight: 600; color: var(--muted); }
+  .sstv-badge { margin-left: 6px; padding: 1px 6px; border-radius: 4px; background: #3a3a3c; font-size: 10px; letter-spacing: .4px; color: var(--muted); }
+  .sstv-grid { display: grid; gap: 8px; grid-template-columns: repeat(3, 1fr); }
+  .sstv-grid.c1 { grid-template-columns: 1fr; max-width: 420px; }
+  .sstv-grid.c2 { grid-template-columns: 1fr 1fr; }
+  .sstv-cell { position: relative; aspect-ratio: 4 / 3; background: #111; border-radius: 8px; overflow: hidden; display: grid; place-items: center; }
+  .sstv-cell img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .sstv-cell .cap { position: absolute; left: 6px; bottom: 5px; padding: 1px 6px; border-radius: 4px; background: rgba(0,0,0,.55); color: #fff; font-size: 10px; }
+  .sstv-pending { color: #636366; font-size: 12px; }
+  .doc-meta { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+
+  .chat-fab {
+    position: fixed; right: 18px; bottom: 18px; z-index: 40; width: 52px; height: 52px;
+    border-radius: 50%; border: 0; background: var(--blue); color: #fff; font-size: 22px;
+    box-shadow: 0 4px 16px rgba(10,132,255,.4), 0 2px 6px rgba(0,0,0,.3);
+    display: grid; place-items: center;
+  }
+  .chat-fab:hover { filter: brightness(1.08); }
+  .chat-fab.listening { background: var(--green); box-shadow: 0 4px 16px rgba(48,209,88,.45); }
+  .chat-panel {
+    position: fixed; right: 18px; bottom: 80px; z-index: 41; width: min(360px, calc(100vw - 24px));
+    max-height: min(480px, 70vh); background: #1c1c1e; border-radius: 14px; overflow: hidden;
+    box-shadow: 0 12px 40px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.08);
+    display: none; flex-direction: column;
+  }
+  .chat-panel.open { display: flex; }
+  .chat-head {
+    display: flex; align-items: center; justify-content: space-between; padding: 12px 14px;
+    border-bottom: 1px solid var(--border); background: #2c2c2e;
+  }
+  .chat-head h3 { margin: 0; font-size: 14px; font-weight: 600; }
+  .chat-head .sub { font-size: 11px; color: var(--muted); font-weight: 400; }
+  .chat-head button { border: 0; background: transparent; color: var(--blue); font-size: 13px; font-weight: 500; }
+  .chat-log {
+    flex: 1; overflow: auto; padding: 12px 14px; min-height: 160px; max-height: 280px;
+    display: flex; flex-direction: column; gap: 8px; background: #1c1c1e;
+  }
+  .chat-msg {
+    max-width: 85%; padding: 8px 11px; border-radius: 12px; font-size: 13px;
+    line-height: 1.4; word-break: break-word;
+  }
+  .chat-msg.me { align-self: flex-end; background: var(--blue); color: #fff; border-bottom-right-radius: 4px; }
+  .chat-msg.them { align-self: flex-start; background: #3a3a3c; color: #f5f5f7; border-bottom-left-radius: 4px; }
+  .chat-msg.sys { align-self: center; background: transparent; color: var(--muted); font-size: 11px; padding: 4px; }
+  .chat-compose {
+    display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--border); background: #2c2c2e;
+  }
+  .chat-compose input {
+    flex: 1; height: 36px; border: 1px solid #48484a; border-radius: 9px; padding: 0 12px;
+    font-size: 13px; outline: 0; background: #1c1c1e; color: var(--text);
+  }
+  .chat-compose input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(10,132,255,.2); }
+  .chat-compose button {
+    height: 36px; padding: 0 14px; border-radius: 9px; border: 0; background: var(--blue);
+    color: #fff; font-size: 13px; font-weight: 500;
+  }
+  .chat-tools { display: flex; gap: 8px; padding: 0 12px 10px; background: #2c2c2e; }
+  .chat-tools button {
+    flex: 1; height: 32px; border-radius: 8px; border: 1px solid #48484a; background: #1c1c1e;
+    font-size: 12px; font-weight: 500; color: var(--text);
+  }
+  .chat-tools button.live { background: rgba(48,209,88,.15); border-color: #30d158; color: #30d158; }
+
+  .overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 50;
+    display: flex; align-items: flex-end; justify-content: center; padding: 12px;
+    opacity: 0; pointer-events: none; transition: opacity .2s;
+  }
+  .overlay.open { opacity: 1; pointer-events: auto; }
+  .sheet {
+    width: 100%; max-width: 420px; background: var(--sheet-bg); border-radius: 14px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.5); padding: 8px 0 16px;
+    transform: translateY(12px); transition: transform .2s;
+  }
+  .overlay.open .sheet { transform: translateY(0); }
+  .sheet-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px 8px; border-bottom: 1px solid var(--border);
+  }
+  .sheet-head h2 { margin: 0; font-size: 16px; font-weight: 600; }
+  .sheet-head button { border: 0; background: transparent; color: var(--blue); font-size: 14px; font-weight: 500; }
+  .sheet-body { padding: 12px 16px; display: flex; flex-direction: column; gap: 14px; }
+  .field label {
+    display: block; font-size: 11px; font-weight: 600; color: var(--muted);
+    margin-bottom: 6px; text-transform: uppercase; letter-spacing: .3px;
+  }
+  .seg { display: flex; background: #1c1c1e; border-radius: 8px; padding: 2px; }
+  .seg button {
+    flex: 1; padding: 8px; border: 0; border-radius: 6px; background: transparent;
+    font-size: 13px; font-weight: 500; color: var(--muted);
+  }
+  .seg button.active { background: #3a3a3c; color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+  .sheet-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .sheet-actions button {
+    padding: 9px 12px; border-radius: 8px; border: 1px solid #48484a; background: #1c1c1e;
+    font-size: 13px; font-weight: 500; color: var(--text);
+  }
+  .sheet-actions button.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .hint {
+    font-size: 12px; line-height: 1.45; color: var(--muted); padding: 8px 10px;
+    background: #1c1c1e; border-radius: 8px;
+  }
+  .hint b { color: var(--text); }
+  .viewport-loading b { color: var(--text); }
+  @media (max-width: 520px) {
+    .address input { text-align: left; }
+    .tab { max-width: 140px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="window">
+    <div class="titlebar">
+      <div class="traffic" title="Status">
+        <i class="ready" id="led-ready" title="Ready"></i>
+        <i class="tx" id="led-tx" title="Transmitting"></i>
+        <i class="rx" id="led-rx" title="Receiving"></i>
+      </div>
+      <div class="tabs" id="tabs"></div>
+      <button type="button" class="tab-add" id="tab-add" title="New tab">+</button>
+    </div>
+
+    <div class="toolbar">
+      <button type="button" class="nav" id="back" title="Back">‹</button>
+      <button type="button" class="nav" id="forward" title="Forward">›</button>
+      <form class="address" id="address-form">
+        <span class="lock" title="Interacousta">ia</span>
+        <input id="address-input" value="ab://welcome" aria-label="Address" autocomplete="off" spellcheck="false">
+      </form>
+      <button type="button" class="nav" id="go-btn" title="Go" style="width:auto;padding:0 10px;font-size:12px;font-weight:600;color:var(--blue)">Go</button>
+      <button type="button" class="nav" id="fav-toggle" title="Favourites">☆</button>
+      <button type="button" class="nav" id="refresh" title="Reload">↻</button>
+      <button type="button" class="gear" id="open-settings" title="Settings">⚙</button>
+    </div>
+
+    <div class="bm-bar" id="bm-bar">
+      <button type="button" class="bm-btn" data-url="https://example.com">example.com</button>
+      <button type="button" class="bm-btn" data-url="https://wikipedia.org">wikipedia.org</button>
+      <button type="button" class="bm-btn" data-url="https://news.ycombinator.com">HN</button>
+      <button type="button" class="bm-btn" data-url="ab://welcome">Start</button>
+    </div>
+
+    <div class="xfer-bar" id="xfer-bar">
+      <span class="phase" id="xfer-phase">Idle</span>
+      <div class="xfer-track"><div class="xfer-fill" id="xfer-fill"></div></div>
+      <span id="xfer-detail"></span>
+    </div>
+
+    <div class="page">
+      <div class="welcome" id="welcome">
+        <div class="welcome-icon"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMYAAADDCAIAAABWNPm5AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAbjSURBVHhe7dNZtts6DAXRzH/SeXo35RU7VsMGlNjU/ss1AFLgya/fUigjpWBGSsGMlIIZKQUzUgpmpBTMSClYRqR+vfBvaU9qPkjTC3+VvhRGasMP0qfySG34TXqTEQty9InfpJfaSG34WfqRFwhC9IWfpdxIbQjRF37W8sIitaFCayvJAQnaQ4UWVhgCErSHCq3KSClYeQJI0B4qtKSq5ydBe6jQelpFakORFlP78MTnAEVaScCrE58DFGkZzSO1oU5riHlvsnOMOi0g7LHJzjHqNLv7IrWhVFOLfGaCc4pSzSv4jQnOKUo1qQcitaFaM4p/XVJzhWpN57FIbWjQXJq8K5FJQIMm0upRiUwCGjSL5yO1oUdTaPic5CUBDZpC2+ckMglo0Ph6idSGHg2u+UOSlzT0aGR3vCJ5SUOPhtVdpDa0aUw3vR9hSUabBnTf4xGWZLRpNP1GakOnhnLrs5GUHHRqHHe/GUnJQacGMUCkNjRrBA+8FjHJRLO698xTEZNMNKtvI0VqQ7869tgjkZF89KtXT74QGclHv7o0ZKQ2jFB/Hn4bApKPfvXn+bchI/noV2cGjtSGEepJF69CQIowQt3o5UkISBFGqA8zRGrDFHWgo8cgHaWYoqf19RKkoxRT9KjunoF0lGKKnjNbpDYM0kN6fACiUYFBekKn2ycaFRik2/W7eqJRgUG618yR2jBLN+p66eSiDrN0l943Ti7qMEu3WCJSG8apvQF2TSjqMEvtjbFrclGHWWpsmEWTizrMUksjbZlc1GGWmlkuUhvGqY3B9ksoqjFODYy3XEJRjXGKNuRmCUU1xinU0pHaMFFxRt0piYjARAUZeKEkIgITFWHsbZKICExUteFXSSIiMFF1ZtgjiYjARFUwUv9iqEpNskHiEIShKjLP+ohDEIZqDzs62NJUu+NDIzBRn9jOG354M9vu+NAITNQLe/nEb28mXBzfGoGJy2Mde6h4M+fW+NwITFwYi9hDxadpV8ZHR2Dievj+AxR9mXlffHoEJi6Dzz5G3Z7Jl8UCIjBxAXzwMeoOzL8p1hCBifPiO49Rd2qJ/3zsIwITp8PnnaL0yhKR2rCVCEycCB92jLo0zy+IW5+itA6zIjBxfHzPKUqT3bcdLhiK0cloi8DEYfEZpyjN1Go1XOpenH2K0ghMHBAfcIrSfJF74S594E57qIjAxHFw7ytUF6ldClfoG3d9ww8RmDgCbnyK0grZIzh5THzDD/4UgYkd46JXqK6TNIUD5xL7XX8W1SHud4XqCGezOE1p2FpPuNkVqoMcjuM0JWNxfeBOCWiIY6QisbtHcZUENEQzUsFY30O4RAIaGjgbzeHKxPruxdkJaGgm6QDuomQs7i6cmoCGlvLO4F5KwMoa47A09DRWcgwX1BX21QZnpKHnFlWHcV8dY1PRmJ6GnrsEnMfFdYA1BWFoGnruFXkq36EvLKga49LQc7v4g/kgfWI7pZiSjLYnNDybj9MLe8lEczLannPHDfhWvbCXBDQko+1Rt16C79YLe9lDRTLaOvDMVViDXtjLD/6Ug84+PHwbVqIfBQv5s8audHQnlqRkLK4zvV5LV9hUf/q92Tu2qB8spVdjROoIO14JX96xsSOVhTcZFp/RvYUidQ/ePxrTR2Ck4pGCOMwdhJFqhTjUYdZQjFRD5KIUU0ZjpNoiHZloHpORaoiA5KN/TEaqCaJRgUEDMlLBSEQEJo7GSEUiC3GYOxQjFYMINMAB4zBSAXj8ZjhmEEaqCm/eHueNwEiV47Xz0f+DP12hegRGqgTvXIQRb/jhCtXdM1LZeOEijPjCz1eo7puRysDDFmHEKUpPUdoxI5WKJy3CiAQ0nKK0V0YqCY+Zj/4cdJ6itEtG6gJvWIQRRRhxjLr+GKkzvF4RRlRg0DHqOmOk9vFoRRgRgYnHqOuJkdrBcxVhRChGH6CoG0bqXzxUEUY0wAF7qOiGkfqLJyrCiJY46Qs/d8NIgfcpwohbcOQLf+2Jkfof71OEETfi4C7ztDFS5XmiX59W3wvpyEe/viy9GtKRj37tWXQ7RKMII3RgxQURjXz069RyayId+ejXFSOVhGYlWGtZBCQTzUqz0L4ISA46lWOVrZGRHHQq0xKLIyM56FQ+I7WDNhWZf33EJBltKmWkPtCjCpMvkaSkoUd1jBRoULWZV0lYEtCgCEbKPAWbdqHk5QrVirN0pChVqDnXSmROUapoi0aKOjWwYqQoUhsT7pfgHKBIzawVKSrU0kKR4mc1ZqQUbLZFE58v/Kz2logUv+kW80eKH3SXCTdOlH7wJ93IpSuYkVIwI6VgRkrBjJSCGSkFM1IKZqQUzEgpmJFSqN+//wPSiTrNmw+03QAAAABJRU5ErkJggg==" alt="Interacousta" width="56" height="56"></div>
+        <h1>Interacousta</h1>
+        <p class="alias">IA · Internet of Sounds</p>
+        <p>Browse over sound with 4-FSK or Bell 202 AFSK. <b>Remote</b> stays offline — only the Router needs the network. 4-FSK runs at only a few bps, so pages are short excerpts; Bell 202 runs at 1200&nbsp;baud and is far faster.</p>
+        <div class="chips">
+          <button type="button" id="example">example.com</button>
+          <button type="button" id="home-chip">Start page</button>
+        </div>
+      </div>
+      <div class="embedded" id="embedded" hidden>
+        <div class="viewport" id="relay-viewport">
+          <div class="viewport-loading">Loading…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<button type="button" class="chat-fab" id="chat-fab" title="Messages">✉</button>
+<div class="chat-panel" id="chat-panel">
+  <div class="chat-head">
+    <div>
+      <h3>Messages</h3>
+      <div class="sub" id="chat-status">Ready</div>
+    </div>
+    <button type="button" id="chat-close">Done</button>
+  </div>
+  <div class="chat-log" id="chat-log">
+    <div class="chat-msg sys">Enable the microphone to communicate through sound.</div>
+  </div>
+  <div class="chat-tools">
+    <button type="button" id="chat-listen">Enable audio</button>
+  </div>
+  <form class="chat-compose" id="chat-form">
+    <input id="chat-input" maxlength="80" placeholder="Message…" autocomplete="off">
+    <button type="submit" id="chat-send">Send</button>
+  </form>
+</div>
+
+<div class="overlay" id="settings" role="dialog" aria-label="Settings">
+  <div class="sheet">
+    <div class="sheet-head">
+      <h2>Settings</h2>
+      <button type="button" id="close-settings">Done</button>
+    </div>
+    <div class="sheet-body">
+      <div class="field">
+        <label>Role</label>
+        <div class="seg">
+          <button type="button" class="role-btn" data-role="remote">Remote</button>
+          <button type="button" class="role-btn active" data-role="router">Router</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Modulation</label>
+        <div class="seg">
+          <button type="button" class="mod-btn" data-mod="fsk10">4-FSK · 10</button>
+          <button type="button" class="mod-btn" data-mod="fsk20">4-FSK · 20</button>
+          <button type="button" class="mod-btn" data-mod="bell202">Bell 202</button>
+        </div>
+        <div class="hint" style="margin-top:8px" id="mod-hint">
+          <b>4-FSK</b> — 1000 / 1400 / 1800 / 2200 Hz · 10 or 20 sym/s.
+          <b>Bell 202</b> — classic AFSK 1200 baud · mark 1200 Hz / space 2200 Hz.
+          Use the same modulation on both devices.
+        </div>
+      </div>
+      <div class="field">
+        <label>Images (optional SSTV)</label>
+        <div class="seg">
+          <button type="button" class="img-btn" data-img="off">Off</button>
+          <button type="button" class="img-btn" data-img="on">On</button>
+        </div>
+        <div class="hint" style="margin-top:8px">
+          When On, the Router follows each page with up to 10 page images as Robot 36 SSTV (~37 s per pass). Images are sent in strict order 1→10, then 1→10 again. The Remote merges both rounds and lists any image numbers still missing. Set On on both devices. Off keeps pages text-only.
+        </div>
+      </div>
+      <div class="field">
+        <label>Audio</label>
+        <div class="sheet-actions">
+          <button type="button" class="primary" id="arm-audio">Enable microphone</button>
+          <button type="button" id="stop-audio">Disable</button>
+        </div>
+      </div>
+      <div class="hint" id="lab-readout">
+        <b>Router</b> receives requests, loads pages, and transmits content over the acoustic link.
+        <b>Remote</b> stays offline and displays pages delivered by sound only.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+const SR_NOMINAL = 44100;
+const SYM_RATES = [10, 20];
+let SYM_RATE = Number(localStorage.getItem('ab-sym-rate'));
+if (!SYM_RATES.includes(SYM_RATE)) SYM_RATE = 20;
+const TONES = [1000, 1400, 1800, 2200];
+const PREAMBLE_HZ = 700;
+const PREAMBLE_MS = 800;
+const POST_MS = 400;
+const MAGIC = [0xAA, 0x55];
+const SYNC  = [0xD3, 0x91];
+const TX_AMPLITUDE = 0.55;
+const MAX_PAGE_CHARS = 20000; 
+const PACKET_CHARS = 28;      
+const INTER_FRAME_MS = 1100;  
+const BELL_GAP_MS = 350;      
+const BELL_PACKET_CHARS = 64;
+const PROTOCOL_RETRY_LIMIT = 10; // applies to every acoustic frame send and repair cycle
+
+
+const State = {
+  role: (localStorage.getItem('ab-role') || 'router'),
+  images: (localStorage.getItem('ab-images') === 'on'),
+  mod: (function () {
+    const m = localStorage.getItem('ab-mod') || '';
+    if (m === 'bell202') return 'bell202';
+    if (m === 'fsk10' || m === '10') return 'fsk10';
+    if (m === 'fsk20' || m === '20') return 'fsk20';
+
+    const r = Number(localStorage.getItem('ab-sym-rate'));
+    return r === 10 ? 'fsk10' : 'fsk20';
+  })(),
+  listening: false,
+  tx: false,
+  rx: false,
+  audioReady: false
+};
+if (State.mod === 'fsk10') SYM_RATE = 10;
+else if (State.mod === 'fsk20') SYM_RATE = 20;
+
+const PageCache = {
+  map: {},
+  put(url, data) { this.map[url] = data; try { sessionStorage.setItem('ab-cache', JSON.stringify(this.map)); } catch(_){} },
+  get(url) { return this.map[url] || null; },
+  load() {
+    try { const j = sessionStorage.getItem('ab-cache'); if (j) this.map = JSON.parse(j); } catch(_){}
+  }
+};
+PageCache.load();
+
+let tabs = [];
+let activeId = null;
+let tabSeq = 0;
+
+function hostFrom(url) {
+  try {
+    if (url.startsWith('ab://')) return url.slice(5) || 'welcome';
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch { return String(url).slice(0, 24); }
+}
+function titleFrom(url, pageTitle) {
+  return pageTitle || hostFrom(url) || 'Page';
+}
+function normalize(v) {
+  v = String(v || '').trim();
+  if (!v) return '';
+  if (v === 'ab://welcome' || v === 'welcome' || v === 'start') return 'ab://welcome';
+  if (/^https?:\/\//i.test(v)) return v;
+  if (/^[\w.-]+\.[a-z]{2,}/i.test(v)) return 'https://' + v;
+  if (v.startsWith('ab:')) return v;
+  return 'https://' + v;
+}
+
+function createTab(url) {
+  const id = 't' + (++tabSeq);
+  const initial = url || 'ab://welcome';
+  const t = {
+    id, url: initial,
+    title: initial === 'ab://welcome' ? 'Interacousta' : hostFrom(initial) + '…',
+    html: null, pageTitle: null,
+    history: [initial], historyIndex: 0
+  };
+  tabs.push(t);
+  return t;
+}
+
+function renderTabs() {
+  const el = $('tabs');
+  el.innerHTML = '';
+  tabs.forEach(t => {
+    const d = document.createElement('div');
+    d.className = 'tab' + (t.id === activeId ? ' active' : '');
+    d.innerHTML = '<span class="fav"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMYAAADDCAIAAABWNPm5AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAbjSURBVHhe7dNZtts6DAXRzH/SeXo35RU7VsMGlNjU/ss1AFLgya/fUigjpWBGSsGMlIIZKQUzUgpmpBTMSClYRqR+vfBvaU9qPkjTC3+VvhRGasMP0qfySG34TXqTEQty9InfpJfaSG34WfqRFwhC9IWfpdxIbQjRF37W8sIitaFCayvJAQnaQ4UWVhgCErSHCq3KSClYeQJI0B4qtKSq5ydBe6jQelpFakORFlP78MTnAEVaScCrE58DFGkZzSO1oU5riHlvsnOMOi0g7LHJzjHqNLv7IrWhVFOLfGaCc4pSzSv4jQnOKUo1qQcitaFaM4p/XVJzhWpN57FIbWjQXJq8K5FJQIMm0upRiUwCGjSL5yO1oUdTaPic5CUBDZpC2+ckMglo0Ph6idSGHg2u+UOSlzT0aGR3vCJ5SUOPhtVdpDa0aUw3vR9hSUabBnTf4xGWZLRpNP1GakOnhnLrs5GUHHRqHHe/GUnJQacGMUCkNjRrBA+8FjHJRLO698xTEZNMNKtvI0VqQ7869tgjkZF89KtXT74QGclHv7o0ZKQ2jFB/Hn4bApKPfvXn+bchI/noV2cGjtSGEepJF69CQIowQt3o5UkISBFGqA8zRGrDFHWgo8cgHaWYoqf19RKkoxRT9KjunoF0lGKKnjNbpDYM0kN6fACiUYFBekKn2ycaFRik2/W7eqJRgUG618yR2jBLN+p66eSiDrN0l943Ti7qMEu3WCJSG8apvQF2TSjqMEvtjbFrclGHWWpsmEWTizrMUksjbZlc1GGWmlkuUhvGqY3B9ksoqjFODYy3XEJRjXGKNuRmCUU1xinU0pHaMFFxRt0piYjARAUZeKEkIgITFWHsbZKICExUteFXSSIiMFF1ZtgjiYjARFUwUv9iqEpNskHiEIShKjLP+ohDEIZqDzs62NJUu+NDIzBRn9jOG354M9vu+NAITNQLe/nEb28mXBzfGoGJy2Mde6h4M+fW+NwITFwYi9hDxadpV8ZHR2Dievj+AxR9mXlffHoEJi6Dzz5G3Z7Jl8UCIjBxAXzwMeoOzL8p1hCBifPiO49Rd2qJ/3zsIwITp8PnnaL0yhKR2rCVCEycCB92jLo0zy+IW5+itA6zIjBxfHzPKUqT3bcdLhiK0cloi8DEYfEZpyjN1Go1XOpenH2K0ghMHBAfcIrSfJF74S594E57qIjAxHFw7ytUF6ldClfoG3d9ww8RmDgCbnyK0grZIzh5THzDD/4UgYkd46JXqK6TNIUD5xL7XX8W1SHud4XqCGezOE1p2FpPuNkVqoMcjuM0JWNxfeBOCWiIY6QisbtHcZUENEQzUsFY30O4RAIaGjgbzeHKxPruxdkJaGgm6QDuomQs7i6cmoCGlvLO4F5KwMoa47A09DRWcgwX1BX21QZnpKHnFlWHcV8dY1PRmJ6GnrsEnMfFdYA1BWFoGnruFXkq36EvLKga49LQc7v4g/kgfWI7pZiSjLYnNDybj9MLe8lEczLannPHDfhWvbCXBDQko+1Rt16C79YLe9lDRTLaOvDMVViDXtjLD/6Ug84+PHwbVqIfBQv5s8audHQnlqRkLK4zvV5LV9hUf/q92Tu2qB8spVdjROoIO14JX96xsSOVhTcZFp/RvYUidQ/ePxrTR2Ck4pGCOMwdhJFqhTjUYdZQjFRD5KIUU0ZjpNoiHZloHpORaoiA5KN/TEaqCaJRgUEDMlLBSEQEJo7GSEUiC3GYOxQjFYMINMAB4zBSAXj8ZjhmEEaqCm/eHueNwEiV47Xz0f+DP12hegRGqgTvXIQRb/jhCtXdM1LZeOEijPjCz1eo7puRysDDFmHEKUpPUdoxI5WKJy3CiAQ0nKK0V0YqCY+Zj/4cdJ6itEtG6gJvWIQRRRhxjLr+GKkzvF4RRlRg0DHqOmOk9vFoRRgRgYnHqOuJkdrBcxVhRChGH6CoG0bqXzxUEUY0wAF7qOiGkfqLJyrCiJY46Qs/d8NIgfcpwohbcOQLf+2Jkfof71OEETfi4C7ztDFS5XmiX59W3wvpyEe/viy9GtKRj37tWXQ7RKMII3RgxQURjXz069RyayId+ejXFSOVhGYlWGtZBCQTzUqz0L4ISA46lWOVrZGRHHQq0xKLIyM56FQ+I7WDNhWZf33EJBltKmWkPtCjCpMvkaSkoUd1jBRoULWZV0lYEtCgCEbKPAWbdqHk5QrVirN0pChVqDnXSmROUapoi0aKOjWwYqQoUhsT7pfgHKBIzawVKSrU0kKR4mc1ZqQUbLZFE58v/Kz2logUv+kW80eKH3SXCTdOlH7wJ93IpSuYkVIwI6VgRkrBjJSCGSkFM1IKZqQUzEgpmJFSqN+//wPSiTrNmw+03QAAAABJRU5ErkJggg==" alt="" width="12" height="12" style="width:12px;height:12px;object-fit:contain;filter:invert(1);display:block;border-radius:2px"></span><b></b><button type="button" class="x" title="Close">×</button>';
+    d.querySelector('b').textContent = t.title;
+    d.onclick = (e) => {
+      if (e.target.classList.contains('x')) { closeTab(t.id); return; }
+      activeId = t.id; renderTabs(); showTabContent(t);
+    };
+    el.appendChild(d);
+  });
+}
+
+function closeTab(id) {
+  const i = tabs.findIndex(t => t.id === id);
+  if (i < 0) return;
+  tabs.splice(i, 1);
+  if (!tabs.length) {
+    const t = createTab('ab://welcome');
+    activeId = t.id;
+  } else if (activeId === id) {
+    activeId = tabs[Math.min(i, tabs.length - 1)].id;
+  }
+  renderTabs();
+  showTabContent(tabs.find(t => t.id === activeId));
+}
+
+function rememberNavigation(tab, url) {
+  if (!Array.isArray(tab.history)) tab.history = [tab.url];
+  tab.history = tab.history.slice(0, tab.historyIndex + 1);
+  tab.history.push(url);
+  tab.historyIndex = tab.history.length - 1;
+  tab.url = url;
+}
+
+function updateNavButtons() {
+  const t = tabs.find(x => x.id === activeId);
+  if (!t || !Array.isArray(t.history)) {
+    $('back').disabled = true; $('forward').disabled = true; return;
+  }
+  $('back').style.opacity = t.historyIndex > 0 ? '1' : '.4';
+  $('forward').style.opacity = t.historyIndex < t.history.length - 1 ? '1' : '.4';
+}
+
+function showTabContent(t) {
+  if (!t) return;
+  const address = $('address-input');
+  address.value = t.url;
+  if (t.url === 'ab://welcome') {
+    $('welcome').hidden = false; $('embedded').hidden = true;
+  } else if (t.html) {
+    $('welcome').hidden = true; $('embedded').hidden = false;
+    $('relay-viewport').innerHTML = t.html;
+    bindViewportLinks();
+  } else {
+    $('welcome').hidden = true; $('embedded').hidden = false;
+    $('relay-viewport').innerHTML = '<div class="viewport-loading">Loading…</div>';
+  }
+  updateNavButtons();
+}
+
+function updateLEDs() {
+  $('led-ready').classList.toggle('on', State.audioReady || State.listening);
+  $('led-tx').classList.toggle('on', !!State.tx);
+  $('led-rx').classList.toggle('on', !!State.rx || State.listening);
+}
+function setXfer(phase, pct, detail) {
+  const bar = $('xfer-bar');
+  if (!phase) { bar.classList.remove('on'); return; }
+  bar.classList.add('on');
+  $('xfer-phase').textContent = phase;
+  $('xfer-fill').style.width = Math.min(100, pct || 0) + '%';
+  $('xfer-detail').textContent = detail || '';
+}
+
+function pageHTML(text) {
+  let body = String(text || '');
+
+  body = body.replace(/^Title:\s*.+\n+/i, '');
+  body = body.replace(/^Markdown Content:\s*/i, '');
+  const lines = body.split(/\n/);
+  const out = [];
+  let para = [];
+  const flush = () => {
+    if (para.length) {
+      out.push('<p>' + para.join(' ').replace(/`([^`]+)`/g, '<code>$1</code>') + '</p>');
+      para = [];
+    }
+  };
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) { flush(); continue; }
+    if (/^#{1,3}\s+/.test(line)) {
+      flush();
+      const h = line.replace(/^#+\s+/, '');
+      out.push('<h2>' + esc(h) + '</h2>');
+    } else if (/^[-*]\s+/.test(line)) {
+      flush();
+      out.push('<ul><li>' + esc(line.replace(/^[-*]\s+/, '')) + '</li></ul>');
+    } else {
+      para.push(esc(line));
+    }
+  }
+  flush();
+  return out.join('\n') || '<p>(empty)</p>';
+}
+
+function bindViewportLinks() {
+  $('relay-viewport').querySelectorAll('a[href]').forEach(a => {
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      const href = a.getAttribute('href');
+      if (href) navigate(href);
+    });
+  });
+}
+
+const CRC_TABLE = (() => {
+  const t = new Uint16Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i << 8;
+    for (let j = 0; j < 8; j++) c = (c & 0x8000) ? ((c << 1) ^ 0x1021) & 0xFFFF : (c << 1) & 0xFFFF;
+    t[i] = c;
+  }
+  return t;
+})();
+function crc16(data) {
+  let crc = 0xFFFF;
+  for (let i = 0; i < data.length; i++) crc = ((crc << 8) ^ CRC_TABLE[((crc >> 8) ^ data[i]) & 0xFF]) & 0xFFFF;
+  return crc;
+}
+
+function buildWirePacket(text) {
+  const payload = new TextEncoder().encode(text);
+  const pkt = new Uint8Array(2 + 2 + 2 + payload.length + 2);
+  pkt[0] = MAGIC[0]; pkt[1] = MAGIC[1];
+  pkt[2] = SYNC[0];  pkt[3] = SYNC[1];
+  pkt[4] = (payload.length >> 8) & 0xFF;
+  pkt[5] = payload.length & 0xFF;
+  pkt.set(payload, 6);
+  const crc = crc16(payload);
+  pkt[6 + payload.length] = (crc >> 8) & 0xFF;
+  pkt[6 + payload.length + 1] = crc & 0xFF;
+  return pkt;
+}
+
+function parseWirePacket(bytes) {
+  if (bytes.length < 8) return { ok: false };
+  if (bytes[0] !== MAGIC[0] || bytes[1] !== MAGIC[1]) return { ok: false };
+  if (bytes[2] !== SYNC[0]  || bytes[3] !== SYNC[1])  return { ok: false };
+  const len = (bytes[4] << 8) | bytes[5];
+  if (len === 0 || len > 4096) return { ok: false };
+  if (6 + len + 2 > bytes.length) return { ok: false };
+  const payload = bytes.slice(6, 6 + len);
+  const rxCrc = (bytes[6 + len] << 8) | bytes[6 + len + 1];
+  if (crc16(payload) !== rxCrc) return { ok: false };
+  return { ok: true, text: new TextDecoder().decode(payload) };
+}
+
+function protoFrame(kind, fields) {
+  return ['AB', 'PKT', String(kind).toUpperCase()].concat((fields || []).map(f => String(f == null ? '' : f))).join('|');
+}
+function parseProto(raw) {
+  const parts = String(raw).split('|');
+  if (parts[0] !== 'AB' || parts[1] !== 'PKT') return null;
+  return { kind: parts[2], fields: parts.slice(3) };
+}
+
+const Bell202 = {
+  MARK: 1200,
+  SPACE: 2200,
+  BAUD: 1200,
+  MIN_AMP: 0.002,        
+  MAX_FRAME: 700,        
+  maxPayload: 160,
+  _rx: null,
+  stats: { frames: 0, badCrc: 0, framing: 0 },
+  onEvent: null,         
+
+  _pushUart(bits, byte) {
+    bits.push(0);
+    for (let i = 0; i < 8; i++) bits.push((byte >> i) & 1);
+    bits.push(1);
+  },
+
+  _wire(text) {
+    const raw = new TextEncoder().encode(String(text || ''));
+    const crc = crc16(raw);
+    const src = new Uint8Array(raw.length + 2);
+    src.set(raw);
+    src[raw.length] = (crc >> 8) & 0xFF;
+    src[raw.length + 1] = crc & 0xFF;
+    const out = [];
+    for (let i = 0; i < src.length; i++) {
+      const b = src[i];
+      if (b === 0x7E || b === 0x7D) out.push(0x7D, b ^ 0x20);
+      else out.push(b);
+    }
+    return out;
+  },
+
+  encode(text, sampleRate, leadBits) {
+    const sr = sampleRate || 48000;
+    const spb = sr / this.BAUD;
+    const body = this._wire(text);
+    const bits = [];
+    for (let i = 0; i < (leadBits || 240); i++) bits.push(1);                 
+    for (let i = 0; i < 8; i++) this._pushUart(bits, 0x55);     
+    for (let i = 0; i < 2; i++) this._pushUart(bits, 0x7E);     
+    for (let i = 0; i < body.length; i++) this._pushUart(bits, body[i]);
+    for (let i = 0; i < 2; i++) this._pushUart(bits, 0x7E);     
+    for (let i = 0; i < 24; i++) bits.push(1);                  
+
+    const total = Math.ceil(bits.length * spb);
+    const out = new Float32Array(total);
+    const TWO_PI = 2 * Math.PI;
+    let phase = 0, sample = 0;
+    for (let bi = 0; bi < bits.length; bi++) {
+      const w = TWO_PI * (bits[bi] ? this.MARK : this.SPACE) / sr;
+      const end = Math.min(total, Math.round((bi + 1) * spb));
+      while (sample < end) {
+        out[sample++] = 0.5 * Math.sin(phase);   
+        phase += w;
+        if (phase > TWO_PI) phase -= TWO_PI;
+      }
+    }
+    const fin = Math.min(64, out.length), fout = Math.min(128, out.length);
+    for (let i = 0; i < fin; i++) out[i] *= i / fin;
+    for (let i = 0; i < fout; i++) out[out.length - 1 - i] *= i / fout;
+    return out;
+  },
+
+  _bq(type, f0, Q, sr) {
+    const w0 = 2 * Math.PI * f0 / sr, c = Math.cos(w0), a = Math.sin(w0) / (2 * Q);
+    let b0, b1, b2;
+    if (type === 'hp') { b0 = (1 + c) / 2; b1 = -(1 + c); b2 = (1 + c) / 2; }
+    else { b0 = (1 - c) / 2; b1 = 1 - c; b2 = (1 - c) / 2; }
+    const a0 = 1 + a;
+    return { b0: b0 / a0, b1: b1 / a0, b2: b2 / a0, a1: (-2 * c) / a0, a2: (1 - a) / a0, x1: 0, x2: 0, y1: 0, y2: 0 };
+  },
+
+  _makeRx(sr) {
+    const spb = sr / this.BAUD;
+    const W = Math.max(8, Math.round(sr / (this.SPACE - this.MARK)));   
+    let hsize = 256; while (hsize < spb * 14) hsize <<= 1;
+    return {
+      sr, spb, W,
+      n: 0,
+      hp: this._bq('hp', 500, 0.7071, sr),
+      lp: this._bq('lp', Math.min(3600, sr * 0.45), 0.7071, sr),
+      pm: 0, ps: 0,
+      dm: 2 * Math.PI * this.MARK / sr, ds: 2 * Math.PI * this.SPACE / sr,
+      bMi: new Float64Array(W), bMq: new Float64Array(W), bSi: new Float64Array(W), bSq: new Float64Array(W),
+      bi: 0, aMi: 0, aMq: 0, aSi: 0, aSq: 0,
+      minE: Math.pow(W * this.MIN_AMP / 2, 2),
+      mRef: 0, sRef: 0,
+      decay: Math.exp(-1 / (sr * 1.5)),
+      prevD: 0, lastCross: 0,
+      hist: new Float32Array(hsize), hmask: hsize - 1,
+      hard: 1, state: 0, ref: 0, chkAt: 0, endAt: 0, chk: false,
+      noCarrier: 0,
+      inFrame: false, esc: false, buf: []
+    };
+  },
+
+  resetRx() { this._rx = null; },
+
+  _finish(r, frames) {
+    const b = r.buf;
+    if (b.length >= 3) {
+      const len = b.length - 2;
+      const payload = new Uint8Array(len);
+      for (let i = 0; i < len; i++) payload[i] = b[i];
+      const rx = (b[len] << 8) | b[len + 1];
+      if (crc16(payload) === rx) {
+        this.stats.frames++;
+        const text = new TextDecoder().decode(payload);
+        frames.push(text);
+        if (this.onEvent) { try { this.onEvent('frame', { bytes: len }); } catch (_) {} }
+      } else {
+        this.stats.badCrc++;
+        if (this.onEvent) { try { this.onEvent('badcrc', { bytes: len }); } catch (_) {} }
+      }
+    }
+  },
+
+  _onByte(r, byte, frames) {
+    if (byte === 0x7E) {
+      if (r.inFrame && r.buf.length) this._finish(r, frames);
+      r.buf.length = 0; r.esc = false; r.inFrame = true;
+      return;
+    }
+    if (!r.inFrame) return;
+    if (r.esc) { r.buf.push(byte ^ 0x20); r.esc = false; }
+    else if (byte === 0x7D) r.esc = true;
+    else r.buf.push(byte);
+    if (r.buf.length > this.MAX_FRAME) { r.buf.length = 0; r.inFrame = false; r.esc = false; }
+  },
+
+  _OFFS: [0, -0.1, 0.1, -0.2, 0.2, -0.3, 0.3, -0.4, 0.4],
+  _pick(r) {
+    const spb = r.spb;
+    let bestByte = -1, bestScore = -1;
+    for (let oi = 0; oi < this._OFFS.length; oi++) {
+      const off = this._OFFS[oi];
+      let ok = true, min = 9, byte = 0;
+      for (let kb = 0; kb < 10; kb++) {
+        const dv = r.hist[Math.round(r.ref + (kb + 0.5 + off) * spb) & r.hmask];
+        const bit = dv > 0 ? 1 : 0, a = dv < 0 ? -dv : dv;
+        if (a < min) min = a;
+        if (kb === 0) { if (bit !== 0) { ok = false; break; } }
+        else if (kb <= 8) byte |= bit << (kb - 1);
+        else if (bit !== 1) ok = false;
+      }
+      if (ok && min > bestScore + 0.03) { bestScore = min; bestByte = byte; }
+    }
+    return bestByte;
+  },
+
+  decode(samples, sampleRate) {
+    const sr = sampleRate || 48000;
+    if (!this._rx || this._rx.sr !== sr) this._rx = this._makeRx(sr);
+    const r = this._rx, W = r.W, spb = r.spb, hp = r.hp, lp = r.lp;
+    const TWO_PI = 2 * Math.PI;
+    const frames = [];
+
+    for (let i = 0; i < samples.length; i++) {
+      let x = samples[i], y;
+
+      y = hp.b0 * x + hp.b1 * hp.x1 + hp.b2 * hp.x2 - hp.a1 * hp.y1 - hp.a2 * hp.y2;
+      hp.x2 = hp.x1; hp.x1 = x; hp.y2 = hp.y1; hp.y1 = y; x = y;
+      y = lp.b0 * x + lp.b1 * lp.x1 + lp.b2 * lp.x2 - lp.a1 * lp.y1 - lp.a2 * lp.y2;
+      lp.x2 = lp.x1; lp.x1 = x; lp.y2 = lp.y1; lp.y1 = y; x = y;
+
+      const pMi = x * Math.cos(r.pm), pMq = x * Math.sin(r.pm);
+      const pSi = x * Math.cos(r.ps), pSq = x * Math.sin(r.ps);
+      r.pm += r.dm; if (r.pm > TWO_PI) r.pm -= TWO_PI;
+      r.ps += r.ds; if (r.ps > TWO_PI) r.ps -= TWO_PI;
+      const k = r.bi;
+      r.aMi += pMi - r.bMi[k]; r.bMi[k] = pMi;
+      r.aMq += pMq - r.bMq[k]; r.bMq[k] = pMq;
+      r.aSi += pSi - r.bSi[k]; r.bSi[k] = pSi;
+      r.aSq += pSq - r.bSq[k]; r.bSq[k] = pSq;
+      r.bi = (k + 1 === W) ? 0 : k + 1;
+      const n = ++r.n;
+      if (n < W) continue;
+
+      const mE = r.aMi * r.aMi + r.aMq * r.aMq;
+      const sE = r.aSi * r.aSi + r.aSq * r.aSq;
+
+      if (mE < r.minE && sE < r.minE) {                 
+        r.noCarrier++;
+        r.state = 0; r.hard = 1; r.prevD = 0;
+        if (r.noCarrier > spb * 6) { r.inFrame = false; r.buf.length = 0; r.esc = false; }
+        continue;
+      }
+      r.noCarrier = 0;
+
+      r.mRef = Math.max(r.mRef * r.decay, mE, r.minE);
+      r.sRef = Math.max(r.sRef * r.decay, sE, r.minE);
+      if (r.sRef < r.mRef / 30) r.sRef = r.mRef / 30;
+      if (r.mRef < r.sRef / 30) r.mRef = r.sRef / 30;
+      const mn = mE / r.mRef, sn = sE / r.sRef;
+      const d = (mn - sn) / (mn + sn + 1e-9);          
+
+      if (r.prevD >= 0 && d < 0) r.lastCross = n;
+      r.prevD = d;
+
+      r.hist[n & r.hmask] = d;
+
+      if (r.state === 0) {
+        if (r.hard === 1) {
+          if (d < -0.3) {                                 
+            r.hard = 0; r.state = 1; r.chk = false;
+            r.ref = r.lastCross;                          
+            r.chkAt = r.ref + 0.5 * spb;
+            r.endAt = r.ref + 9.95 * spb;
+          }
+        } else if (d > 0.3) r.hard = 1;
+      } else {
+        if (!r.chk && n >= r.chkAt) {                     
+          if (d > 0) { r.state = 0; r.hard = 1; continue; }
+          r.chk = true;
+        }
+        if (n >= r.endAt) {
+          const byte = this._pick(r);
+          if (byte >= 0) this._onByte(r, byte, frames);
+          else {
+            this.stats.framing++;
+            r.inFrame = false; r.buf.length = 0; r.esc = false;
+            if (this.onEvent) { try { this.onEvent('framing', {}); } catch (_) {} }
+          }
+          r.state = 0; r.hard = byte >= 0 ? 1 : (d > 0 ? 1 : 0);
+        }
+      }
+    }
+    return frames;
+  }
+};
+
+function modLabel() { return State.mod === 'bell202' ? 'Bell 202' : '4-FSK'; }
+function packetChars() { return State.mod === 'bell202' ? BELL_PACKET_CHARS : PACKET_CHARS; }
+function interFrameMs() {
+
+  if (State.mod === 'bell202' && !sstvRx && !sstvAckWait) return BELL_GAP_MS;
+  return INTER_FRAME_MS;
+}
+
+function chunkText(str, n) {
+  const out = [];
+  let i = 0;
+  while (i < str.length) {
+    let j = Math.min(str.length, i + n);
+    if (j < str.length) {
+      const c = str.charCodeAt(j - 1);
+      if (c >= 0xD800 && c <= 0xDBFF && j - 1 > i) j--;
+    }
+    out.push(str.slice(i, j));
+    i = j;
+  }
+  return out;
+}
+
+let txCtx = null, txGain = null;
+
+async function ensureTx() {
+  if (!txCtx) {
+    txCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: SR_NOMINAL });
+    txGain = txCtx.createGain();
+    txGain.gain.value = 1;
+    txGain.connect(txCtx.destination);
+  }
+  if (txCtx.state === 'suspended') await txCtx.resume();
+  State.audioReady = true;
+  updateLEDs();
+}
+
+function encodeFSK(packet) {
+  const sr = txCtx.sampleRate;
+  const symSamp = Math.floor(sr / SYM_RATE);
+  const preSamp = Math.floor(PREAMBLE_MS / 1000 * sr);
+  const postSamp = Math.floor(POST_MS / 1000 * sr);
+  const syms = [];
+  for (const byte of packet) {
+    syms.push((byte >> 6) & 3, (byte >> 4) & 3, (byte >> 2) & 3, byte & 3);
+  }
+  const total = preSamp + syms.length * symSamp + postSamp;
+  const buf = txCtx.createBuffer(1, total, sr);
+  const ch = buf.getChannelData(0);
+  const TWO_PI = 2 * Math.PI;
+  let phase = 0;
+  const preStep = TWO_PI * PREAMBLE_HZ / sr;
+  const rampLen = Math.min(Math.floor(preSamp * 0.05), 512);
+  for (let i = 0; i < preSamp; i++) {
+    let env = 1;
+    if (i < rampLen) env = i / rampLen;
+    else if (i > preSamp - rampLen) env = (preSamp - i) / rampLen;
+    ch[i] = TX_AMPLITUDE * env * Math.sin(phase);
+    phase += preStep;
+  }
+  let p = preSamp;
+  for (let s = 0; s < syms.length; s++) {
+    const step = TWO_PI * TONES[syms[s]] / sr;
+    for (let i = 0; i < symSamp; i++) {
+      ch[p++] = TX_AMPLITUDE * Math.sin(phase);
+      phase += step;
+      if (phase > TWO_PI * 4096) phase -= Math.floor(phase / TWO_PI) * TWO_PI;
+    }
+  }
+  for (let i = 0; i < 512 && p + i < total; i++) ch[p + i] *= 1 - (i / 512);
+  return buf;
+}
+
+let txInFlight = false; 
+
+async function transmitText(text, opts) {
+  await ensureTx();
+  let buf;
+  if (State.mod === 'bell202') {
+    const samples = Bell202.encode(text, txCtx.sampleRate, opts && opts.leadBits);
+    buf = txCtx.createBuffer(1, samples.length, txCtx.sampleRate);
+    buf.copyToChannel(samples, 0);
+  } else {
+    const pkt = buildWirePacket(text);
+    buf = encodeFSK(pkt);
+  }
+  const durMs = buf.duration * 1000;
+  txInFlight = true;
+  State.tx = true; updateLEDs();
+
+  rxHadActivity = false;
+  rxSilenceMs = 0;
+  rxActivityMs = 0;
+  if (State.mod === 'bell202') try { Bell202.resetRx(); } catch (_) {}
+  const src = txCtx.createBufferSource();
+  src.buffer = buf;
+  src.connect(txGain);
+  src.start(txCtx.currentTime + 0.04);
+  const bellTx = State.mod === 'bell202';
+
+  await sleep(durMs + (bellTx ? 90 : 150));
+  State.tx = false; updateLEDs();
+
+  await sleep(bellTx ? 40 : 200);
+  txInFlight = false;
+  rxHadActivity = false;
+  rxSilenceMs = 0;
+  rxActivityMs = 0;
+  return durMs;
+}
+
+async function sendFrame(kind, fields) {
+  const frame = protoFrame(kind, fields);
+  if (State.mod !== 'bell202' && frame.length > 85) {
+    addChatMsg('Frame long (' + frame.length + ' B) — may be unreliable', 'sys');
+  }
+
+  const reply = (kind === 'IRD' || kind === 'IOK' || kind === 'INO' || kind === 'IRQ' || kind === 'NAK' || kind === 'IREADY');
+  let lastError = null;
+  for (let attempt = 1; attempt <= PROTOCOL_RETRY_LIMIT; attempt++) {
+    try {
+      await transmitText(frame, reply ? { leadBits: 720 } : undefined);
+      await sleep(interFrameMs());
+      return frame;
+    } catch (e) {
+      lastError = e;
+      if (attempt < PROTOCOL_RETRY_LIMIT) {
+        addChatMsg('Frame ' + kind + ' retry ' + attempt + '/' + PROTOCOL_RETRY_LIMIT, 'sys');
+        await sleep(250);
+      }
+    }
+  }
+  throw lastError || new Error('Frame send failed: ' + kind);
+}
+
+let rxStream = null, rxRecorder = null, rxChunks = [];
+let rxDecodeCtx = null, rxSource = null, rxAnalyser = null, rxTimeDomain = null, rxFreqDomain = null;
+let rxPollId = 0, rxHealthId = 0, rxLastPullTime = 0;
+let rxHadActivity = false, rxSilenceMs = 0, rxActivityMs = 0;
+let rxNoiseFloor = 0.002, rxActivityThresh = 0.012;
+let rxToneFloor = 0.01, rxToneThresh = 0.04;
+let rxDecodeInFlight = false, rxRecordStartedAt = 0;
+let rxListening = false;
+let rxWakeLock = null;
+let rxTap = null;                    
+let rxTapPoll = 0, rxTapBuf = null, rxTapTail = null;
+let rxRecorderRestarting = false;
+let rxCalibrating = false;
+let rxCalibUntil = 0;
+let rxCalibSamples = [];   
+let rxBurstStartedAt = 0;
+let rxLastFloorBump = 0;
+
+const ANALYSER_FFT = 2048;
+const SILENCE_MS = 550;
+const MIN_ACTIVITY_MS = 220;
+const MAX_RECORD_MS = 25000;
+const HEALTH_CHECK_MS = 30000;
+const CALIB_MS = 1200;
+const CALIB_MIN_SAMPLES = 10;
+
+const NOISE_MULT = 5;
+const NOISE_MARGIN = 0.003;
+const MIN_ACTIVITY_THRESH = 0.008;
+const MAX_ACTIVITY_THRESH = 0.18;
+
+const MAX_BURST_MS = 22000;
+const FLOOR_FAST = 0.12;
+const FLOOR_SLOW = 0.02;
+const FLOOR_UP_STUCK = 0.35;
+
+function activeToneHz() {
+  return State.mod === 'bell202' ? [1200, 2200] : [700, 1000, 1400, 1800, 2200];
+}
+const TONE_BW_HZ = 90;
+
+async function acquireWakeLock() {
+  if (!('wakeLock' in navigator) || rxWakeLock) return;
+  try {
+    rxWakeLock = await navigator.wakeLock.request('screen');
+    rxWakeLock.addEventListener('release', () => { rxWakeLock = null; });
+  } catch (_) { rxWakeLock = null; }
+}
+
+async function releaseWakeLock() {
+  if (!rxWakeLock) return;
+  try { await rxWakeLock.release(); } catch (_) {}
+  rxWakeLock = null;
+}
+
+let onFrameCallback = null; 
+
+async function armMic() {
+  if (!rxStream) {
+    rxStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+        channelCount: 1
+      }
+    });
+  }
+  if (!rxDecodeCtx) rxDecodeCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (rxDecodeCtx.state === 'suspended') await rxDecodeCtx.resume();
+  await ensureTx();
+  State.audioReady = true;
+  updateLEDs();
+  $('chat-status').textContent = State.mod === 'bell202' ? 'Mic ready · Bell 202' : 'Mic ready · 4-FSK';
+  return true;
+}
+
+function pickMime() {
+  const cands = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg', 'audio/mp4'];
+  for (const c of cands) {
+    if (!MediaRecorder.isTypeSupported || MediaRecorder.isTypeSupported(c)) return c;
+  }
+  return '';
+}
+
+function startRecorder() {
+  if (rxRecorderRestarting) return false;
+  if (rxRecorder && rxRecorder.state !== 'inactive') { try { rxRecorder.stop(); } catch(_){} }
+  rxChunks = [];
+  const mime = pickMime();
+  try {
+    rxRecorder = new MediaRecorder(rxStream, mime ? { mimeType: mime, audioBitsPerSecond: 128000 } : { audioBitsPerSecond: 128000 });
+  } catch (e) { console.error(e); return false; }
+  rxRecorder.ondataavailable = (e) => {
+    if (e.data && e.data.size) rxChunks.push(e.data);
+  };
+  rxRecorder.onerror = () => restartRecorderSoon();
+  rxRecorder.start(100);
+  rxRecordStartedAt = performance.now();
+  return true;
+}
+
+function restartRecorderSoon() {
+  if (rxRecorderRestarting || !rxListening) return;
+  rxRecorderRestarting = true;
+  try { if (rxRecorder && rxRecorder.state !== 'inactive') rxRecorder.stop(); } catch (_) {}
+  setTimeout(() => {
+    rxRecorderRestarting = false;
+    if (rxListening && (!rxRecorder || rxRecorder.state === 'inactive')) startRecorder();
+  }, 100);
+}
+
+function stopRecorder() {
+  return new Promise(resolve => {
+    if (!rxRecorder || rxRecorder.state === 'inactive') { resolve(); return; }
+    const r = rxRecorder;
+    r.onstop = () => resolve();
+    try { r.stop(); } catch(_) { resolve(); }
+  });
+}
+
+function toneEnergy() {
+  if (!rxAnalyser || !rxFreqDomain) return 0;
+  rxAnalyser.getByteFrequencyData(rxFreqDomain);
+  const sr = rxDecodeCtx ? rxDecodeCtx.sampleRate : 44100;
+  const binHz = sr / rxAnalyser.fftSize;
+  let peak = 0;
+  for (const hz of activeToneHz()) {
+    const lo = Math.max(0, Math.floor((hz - TONE_BW_HZ) / binHz));
+    const hi = Math.min(rxFreqDomain.length - 1, Math.ceil((hz + TONE_BW_HZ) / binHz));
+    let s = 0, n = 0;
+    for (let i = lo; i <= hi; i++) { s += rxFreqDomain[i]; n++; }
+    const m = n ? s / n : 0;
+    if (m > peak) peak = m;
+  }
+
+  return peak / 255;
+}
+
+function broadbandRms() {
+  rxAnalyser.getFloatTimeDomainData(rxTimeDomain);
+  let sum = 0;
+  for (let i = 0; i < rxTimeDomain.length; i += 4) sum += rxTimeDomain[i] * rxTimeDomain[i];
+  return Math.sqrt(sum / (rxTimeDomain.length / 4));
+}
+
+function beginAmbientStudy(reason) {
+  rxCalibrating = true;
+  rxCalibUntil = performance.now() + CALIB_MS;
+  rxCalibSamples = [];
+  rxHadActivity = false;
+  rxSilenceMs = 0;
+  rxActivityMs = 0;
+  rxBurstStartedAt = 0;
+  State.rx = false;
+  updateLEDs();
+  setXfer('Study', 5, 'learning ambient silence…');
+  if (reason) addChatMsg('Ambient study · ' + reason, 'sys');
+}
+
+function finishAmbientStudy() {
+  if (!rxCalibSamples.length) {
+    rxCalibrating = false;
+    setXfer(null);
+    return;
+  }
+  const rmsArr = rxCalibSamples.map(s => s.rms).sort((a, b) => a - b);
+  const toneArr = rxCalibSamples.map(s => s.tone).sort((a, b) => a - b);
+  const mid = (a) => a[a.length >> 1];
+  const at = (a, p) => a[Math.min(a.length - 1, Math.floor(a.length * p))];
+
+  rxNoiseFloor = Math.max(0.0005, mid(rmsArr) * 0.9 + at(rmsArr, 0.75) * 0.1);
+  rxActivityThresh = Math.min(
+    MAX_ACTIVITY_THRESH,
+    Math.max(MIN_ACTIVITY_THRESH, rxNoiseFloor * NOISE_MULT + NOISE_MARGIN, at(rmsArr, 0.9) * 1.25 + NOISE_MARGIN)
+  );
+  rxToneFloor = Math.max(0.008, mid(toneArr));
+
+  rxToneThresh = Math.min(0.55, Math.max(0.035, rxToneFloor * 2.8 + 0.02, at(toneArr, 0.9) * 1.5 + 0.015));
+
+  rxCalibrating = false;
+  rxCalibSamples = [];
+  setXfer(null);
+  $('chat-status').textContent = State.mod === 'bell202' ? 'Listening · Bell 202' : 'Listening · 4-FSK';
+  addChatMsg(
+    'Silence studied · rms ' + rxNoiseFloor.toFixed(4) +
+    ' / gate ' + rxActivityThresh.toFixed(4) +
+    ' · tone ' + rxToneFloor.toFixed(3) +
+    ' / gate ' + rxToneThresh.toFixed(3),
+    'sys'
+  );
+}
+
+async function startListening() {
+  if (rxListening) return;
+  await armMic();
+  rxListening = true;
+  State.listening = true;
+  updateLEDs();
+
+  if (!rxSource) {
+    rxSource = rxDecodeCtx.createMediaStreamSource(rxStream);
+    rxAnalyser = rxDecodeCtx.createAnalyser();
+    rxAnalyser.fftSize = ANALYSER_FFT;
+    rxAnalyser.smoothingTimeConstant = 0.2;
+    rxSource.connect(rxAnalyser);
+  }
+  if (!rxTap) {
+    try {
+      rxTap = rxDecodeCtx.createAnalyser();     
+      rxTap.fftSize = TAP_FFT;
+      rxTap.smoothingTimeConstant = 0;
+      rxSource.connect(rxTap);
+      rxTapBuf = new Float32Array(TAP_FFT);
+      rxTapTail = null;
+      rxTapPoll = setInterval(pollTap, TAP_POLL_MS);
+    } catch (e) {
+      console.warn('PCM tap unavailable — Bell 202 falls back to recorded audio', e);
+      rxTap = null;
+    }
+  }
+  Bell202.resetRx();
+  rxTimeDomain = new Float32Array(rxAnalyser.fftSize);
+  rxFreqDomain = new Uint8Array(rxAnalyser.frequencyBinCount);
+  rxHadActivity = false; rxSilenceMs = 0; rxActivityMs = 0; rxLastPullTime = 0;
+  beginAmbientStudy('startup');
+
+  if (!startRecorder() && !(rxTap && State.mod === 'bell202')) { rxListening = false; return; }
+
+  $('chat-listen').classList.add('live');
+  $('chat-listen').textContent = 'Listening…';
+  $('chat-fab').classList.add('listening');
+  $('chat-status').textContent = 'Studying ambient silence…';
+  addChatMsg('Listening for acoustic frames…', 'sys');
+  await acquireWakeLock();
+  if (rxPollId) clearInterval(rxPollId);
+  rxPollId = setInterval(() => analyserLoop(performance.now()), 40);
+  if (rxHealthId) clearInterval(rxHealthId);
+  rxHealthId = setInterval(() => {
+    if (!rxListening) return;
+    if (rxDecodeCtx && rxDecodeCtx.state === 'suspended') rxDecodeCtx.resume().catch(() => {});
+    if (!rxRecorder || rxRecorder.state === 'inactive') restartRecorderSoon();
+    if (!rxWakeLock) acquireWakeLock();
+  }, HEALTH_CHECK_MS);
+}
+
+async function stopListening() {
+  rxListening = false;
+  State.listening = false;
+  rxCalibrating = false;
+  rxCalibSamples = [];
+  if (rxPollId) { clearInterval(rxPollId); rxPollId = 0; }
+  if (rxHealthId) { clearInterval(rxHealthId); rxHealthId = 0; }
+  if (rxHadActivity && !rxDecodeInFlight) await finaliseAndDecode();
+  else await stopRecorder();
+  rxHadActivity = false;
+  rxActivityMs = 0;
+  rxSilenceMs = 0;
+  rxBurstStartedAt = 0;
+  if (rxSource) { try { rxSource.disconnect(); } catch(_){} rxSource = null; }
+  if (rxTapPoll) { clearInterval(rxTapPoll); rxTapPoll = 0; }
+  if (rxTap) { try { rxTap.disconnect(); } catch (_) {} rxTap = null; }
+  rxTapBuf = null; rxTapTail = null;
+  try { Bell202.resetRx(); } catch (_) {}
+  rxAnalyser = null;
+  State.rx = false;
+  updateLEDs();
+  $('chat-listen').classList.remove('live');
+  $('chat-listen').textContent = 'Enable audio';
+  $('chat-fab').classList.remove('listening');
+  $('chat-status').textContent = 'Stopped';
+  await releaseWakeLock();
+  addChatMsg('Listening stopped', 'sys');
+}
+
+function analyserLoop(now) {
+  if (!rxListening || !rxAnalyser) return;
+  const rms = broadbandRms();
+  const tone = toneEnergy();
+
+  if (!rxLastPullTime) rxLastPullTime = now;
+  const dtMs = Math.min(80, now - rxLastPullTime);
+  rxLastPullTime = now;
+
+  if (rxCalibrating) {
+    rxCalibSamples.push({ rms, tone });
+    if (now >= rxCalibUntil && rxCalibSamples.length >= CALIB_MIN_SAMPLES) {
+      finishAmbientStudy();
+    } else {
+      const left = Math.max(0, rxCalibUntil - now);
+      setXfer('Study', Math.min(99, 100 * (1 - left / CALIB_MS)), 'ambient silence');
+    }
+    rxHadActivity = false;
+    rxActivityMs = 0;
+    rxSilenceMs = 0;
+    return;
+  }
+
+  if (State.mod === 'bell202' && rxTap && !sstvRx) {
+    rxHadActivity = false; rxSilenceMs = 0; rxActivityMs = 0; rxBurstStartedAt = 0;
+    if (State.rx) { State.rx = false; updateLEDs(); }
+    if (!rxDecodeInFlight && (now - rxRecordStartedAt) > MAX_RECORD_MS) restartRecorderSoon();   
+    return;
+  }
+
+  const rmsThresh = Math.min(
+    MAX_ACTIVITY_THRESH,
+    Math.max(rxActivityThresh, rxNoiseFloor * NOISE_MULT + NOISE_MARGIN, MIN_ACTIVITY_THRESH)
+  );
+
+  const toneHot = tone >= rxToneThresh;
+  const rmsHot = rms >= rmsThresh;
+
+  const isSignal = toneHot && (rmsHot || tone >= rxToneThresh * 1.35);
+  const isQuiet = !toneHot && rms < rmsThresh * 0.85;
+
+  if (txInFlight) {
+    rxHadActivity = false;
+    rxSilenceMs = 0;
+    rxActivityMs = 0;
+    rxBurstStartedAt = 0;
+    if (isQuiet) {
+      rxNoiseFloor = rxNoiseFloor * (1 - FLOOR_SLOW) + rms * FLOOR_SLOW;
+      rxToneFloor = rxToneFloor * (1 - FLOOR_SLOW) + tone * FLOOR_SLOW;
+    }
+    return;
+  }
+
+  if (isQuiet) {
+    rxNoiseFloor = rxNoiseFloor * (1 - FLOOR_FAST) + rms * FLOOR_FAST;
+    rxToneFloor = rxToneFloor * (1 - FLOOR_FAST) + tone * FLOOR_FAST;
+    rxActivityThresh = Math.min(
+      MAX_ACTIVITY_THRESH,
+      Math.max(MIN_ACTIVITY_THRESH, rxNoiseFloor * NOISE_MULT + NOISE_MARGIN)
+    );
+    rxToneThresh = Math.min(0.55, Math.max(0.035, rxToneFloor * 2.8 + 0.02));
+    if (rxHadActivity) rxSilenceMs += dtMs;
+    rxActivityMs = 0;
+  } else if (!isSignal) {
+
+    rxNoiseFloor = rxNoiseFloor * (1 - FLOOR_SLOW) + rms * FLOOR_SLOW;
+    rxToneFloor = rxToneFloor * (1 - FLOOR_SLOW) + tone * FLOOR_SLOW;
+    rxActivityMs = Math.max(0, rxActivityMs - dtMs);
+    if (rxHadActivity) rxSilenceMs += dtMs * 0.5;
+  } else {
+    rxActivityMs += dtMs;
+    rxSilenceMs = 0;
+    if (rxActivityMs >= MIN_ACTIVITY_MS && !rxHadActivity) {
+      rxHadActivity = true;
+      rxBurstStartedAt = now;
+      State.rx = true; updateLEDs();
+      sstvBurstT0 = now;
+      setXfer('Receiving', 15, 'FSK tones');
+    }
+  }
+
+  if (sstvCapturing() && rxHadActivity && !txInFlight && (now - sstvBurstT0) > 8000) {
+    setXfer('SSTV', 96, 'Receiving image · ' + Math.round((now - sstvBurstT0) / 1000) + ' s of ~37');
+  }
+
+  const capturing = sstvCapturing();
+
+  if (!capturing && rxHadActivity && rxBurstStartedAt && (now - rxBurstStartedAt) >= MAX_BURST_MS && !rxDecodeInFlight) {
+    rxNoiseFloor = Math.max(rxNoiseFloor, rms * 0.9);
+    rxToneFloor = Math.max(rxToneFloor, tone * 0.9);
+    rxActivityThresh = Math.min(
+      MAX_ACTIVITY_THRESH,
+      Math.max(MIN_ACTIVITY_THRESH, rxNoiseFloor * NOISE_MULT + NOISE_MARGIN)
+    );
+    rxToneThresh = Math.min(0.55, Math.max(0.035, rxToneFloor * 2.8 + 0.02));
+    rxHadActivity = false;
+    rxSilenceMs = 0;
+    rxActivityMs = 0;
+    rxBurstStartedAt = 0;
+    State.rx = false; updateLEDs();
+    setXfer(null);
+    stopRecorder().then(() => {
+      if (!rxListening) return;
+      restartRecorderSoon();
+      if (now - rxLastFloorBump > 12000) {
+        rxLastFloorBump = now;
+        beginAmbientStudy('recalibrate after long noise');
+      }
+    });
+    return;
+  }
+
+  const gateMs = capturing ? SSTV_SILENCE_MS : SILENCE_MS;
+  const hardStop = capturing && rxHadActivity && (now - sstvBurstT0) >= SSTV_HARDSTOP_MS;
+  if (!txInFlight && rxHadActivity && (rxSilenceMs >= gateMs || hardStop) && !rxDecodeInFlight) {
+    setXfer('Decoding', 60, 'silence gate');
+    rxHadActivity = false; rxSilenceMs = 0; rxActivityMs = 0; rxBurstStartedAt = 0;
+    finaliseAndDecode().then(() => {
+      State.rx = false; updateLEDs();
+      if (rxListening) { setXfer(null); restartRecorderSoon(); }
+    });
+  }
+
+  if (!rxHadActivity && !rxDecodeInFlight && !sstvRx && (now - rxRecordStartedAt) > MAX_RECORD_MS) {
+    restartRecorderSoon();
+  }
+}
+
+async function finaliseAndDecode() {
+  if (rxDecodeInFlight) return;
+  rxDecodeInFlight = true;
+  try {
+    await stopRecorder();
+    await sleep(60);
+    if (!rxChunks.length) return;
+
+    if (State.mod === 'bell202' && rxTap && !sstvRx) return;
+    const mime = (rxRecorder && rxRecorder.mimeType) || 'audio/webm';
+    const blob = new Blob(rxChunks, { type: mime });
+    let audioBuf;
+    try {
+      audioBuf = await rxDecodeCtx.decodeAudioData((await blob.arrayBuffer()).slice(0));
+    } catch (e) { console.warn('decodeAudioData', e); return; }
+    const pcm = audioBuf.getChannelData(0), pcmRate = audioBuf.sampleRate;
+    if (sstvRx) {
+
+      sstvHandleBurst(pcm, pcmRate).catch(() => false).then(ok => {
+        if (!ok) {
+          if (State.mod === 'bell202') bellDecode(pcm, pcmRate);
+          else hardDecode(pcm, pcmRate);
+        }
+      });
+    } else if (State.mod === 'bell202') {
+      bellDecode(pcm, pcmRate);
+    } else {
+      hardDecode(pcm, pcmRate);
+    }
+  } finally {
+    rxDecodeInFlight = false;
+    rxChunks = [];
+  }
+}
+
+document.addEventListener('visibilitychange', async () => {
+  if (!rxListening) return;
+  if (rxDecodeCtx && rxDecodeCtx.state === 'suspended') {
+    try { await rxDecodeCtx.resume(); } catch (_) {}
+  }
+  if (rxRecorder && rxRecorder.state === 'inactive') restartRecorderSoon();
+  await acquireWakeLock();
+  $('chat-status').textContent = (document.hidden ? 'Listening in background · ' : 'Listening · ') + modLabel();
+});
+
+window.addEventListener('pagehide', () => { releaseWakeLock(); });
+
+function goertzel(samples, start, len, freq, sr) {
+  if (len < 8) return 0;
+  const coeff = 2 * Math.cos(2 * Math.PI * freq / sr);
+  let s1 = 0, s2 = 0;
+  const end = Math.min(start + len, samples.length);
+  for (let i = start; i < end; i++) {
+    const s0 = samples[i] + coeff * s1 - s2;
+    s2 = s1; s1 = s0;
+  }
+  const n = end - start;
+  return (s1 * s1 + s2 * s2 - coeff * s1 * s2) / (n * n);
+}
+
+function findPreambleEnd(samples, sr, scanFrom) {
+  const winLen = Math.floor(sr * 0.04), hop = Math.floor(sr * 0.01);
+  if (winLen < 16) return -1;
+  const searchStart = Math.max(0, scanFrom || 0);
+  const searchEnd = samples.length - winLen;
+  let bestPreStart = -1, bestPreScore = 0, runStart = -1, runScore = 0, runLen = 0;
+  for (let i = searchStart; i < searchEnd; i += hop) {
+    const preP = goertzel(samples, i, winLen, PREAMBLE_HZ, sr);
+    let maxData = 0;
+    for (let t = 0; t < 4; t++) {
+      const p = goertzel(samples, i, winLen, TONES[t], sr);
+      if (p > maxData) maxData = p;
+    }
+    if (preP > maxData * 1.2 && preP > 1e-10) {
+      if (runStart < 0) { runStart = i; runScore = 0; runLen = 0; }
+      runScore += preP; runLen++;
+    } else {
+      if (runLen >= 8 && runScore > bestPreScore) { bestPreScore = runScore; bestPreStart = runStart; }
+      runStart = -1; runLen = 0; runScore = 0;
+    }
+  }
+  if (runLen >= 8 && runScore > bestPreScore) { bestPreScore = runScore; bestPreStart = runStart; }
+  if (bestPreStart < 0) return -1;
+  const preEndSearch = bestPreStart + Math.floor(sr * 0.12);
+  for (let i = preEndSearch; i < searchEnd; i += hop) {
+    const preP = goertzel(samples, i, winLen, PREAMBLE_HZ, sr);
+    let maxData = 0;
+    for (let t = 0; t < 4; t++) {
+      const p = goertzel(samples, i, winLen, TONES[t], sr);
+      if (p > maxData) maxData = p;
+    }
+    if (maxData > preP * 1.3 && maxData > 1e-10) return i + Math.floor(winLen * 0.2);
+  }
+  return bestPreStart + Math.floor(sr * (PREAMBLE_MS / 1000));
+}
+
+function decodeSymbols(samples, dataStart, sr) {
+  const symSamp = Math.max(1, Math.floor(sr / SYM_RATE));
+  const syms = [];
+  let peakP = 0;
+  for (let s = 0; s < 4096; s++) {
+    const start = Math.round(dataStart + s * symSamp);
+    if (start + Math.floor(symSamp * 0.6) > samples.length) break;
+    const margin = Math.floor(symSamp * 0.2);
+    const len = Math.max(8, symSamp - 2 * margin);
+    let best = -1, bestP = 0;
+    for (let t = 0; t < 4; t++) {
+      const p = goertzel(samples, start + margin, len, TONES[t], sr);
+      if (p > bestP) { bestP = p; best = t; }
+    }
+    if (bestP > peakP) peakP = bestP;
+    if (best < 0 || bestP < Math.max(1e-12, peakP * 0.02)) {
+      if (s > 8) break;
+      if (best < 0) best = 0;
+    }
+    syms.push(best);
+  }
+  return syms;
+}
+
+function symbolsToBytes(syms) {
+  const bytes = [];
+  for (let i = 0; i + 3 < syms.length; i += 4) {
+    bytes.push(((syms[i] & 3) << 6) | ((syms[i + 1] & 3) << 4) | ((syms[i + 2] & 3) << 2) | (syms[i + 3] & 3));
+  }
+  return new Uint8Array(bytes);
+}
+
+function tryExtractOnePacket(samples, sr, scanFrom) {
+  const nudge = Math.max(1, Math.floor(sr * 0.025));
+  const maxAttempts = PROTOCOL_RETRY_LIMIT;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const from = (scanFrom || 0) + attempt * nudge;
+    if (from >= samples.length - 400) break;
+    const dataStart = findPreambleEnd(samples, sr, from);
+    if (dataStart < 0) continue;
+    const symSamp = Math.max(1, Math.floor(sr / SYM_RATE));
+    const offsets = [0, -Math.floor(symSamp * 0.25), Math.floor(symSamp * 0.25),
+                     -Math.floor(symSamp * 0.5), Math.floor(symSamp * 0.5)];
+    for (const tOff of offsets) {
+      const start = Math.max(0, dataStart + tOff);
+      const syms = decodeSymbols(samples, start, sr);
+      if (syms.length < 16) continue;
+      const bytes = symbolsToBytes(syms);
+      for (let off = 0; off <= Math.min(bytes.length - 8, 64); off++) {
+        const r = parseWirePacket(bytes.slice(off));
+        if (r.ok) {
+
+          const wireBytes = 6 + new TextEncoder().encode(r.text).length + 2;
+          const nSyms = wireBytes * 4;
+          const after = start + (nSyms + 4) * symSamp;
+          return { text: r.text, afterSample: after, dataStart };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function bellDecode(samples, sr) {
+  if (txInFlight) return;
+  if (rxTap) return;   
+  try {
+    const frames = Bell202.decode(samples, sr);
+    let found = 0;
+    const seen = new Set();
+    for (const t of frames) {
+      if (!t || seen.has(t)) continue;
+      seen.add(t);
+      found++;
+      handleIncomingFrame(t);
+    }
+
+    const r = Bell202._rx;
+    if (r && r.text && (r.text.indexOf('AB|') === 0 || r.text.indexOf('ab|') === 0) && !seen.has(r.text)) {
+      handleIncomingFrame(r.text);
+      found++;
+      r.text = '';
+    }
+    Bell202.resetRx();
+    if (found > 0) {
+      setXfer('Done', 100, found + ' Bell frame' + (found === 1 ? '' : 's'));
+      setTimeout(() => setXfer(null), 500);
+    } else {
+      setXfer(null);
+    }
+  } catch (e) {
+    console.warn('Bell202 decode', e);
+    setXfer(null);
+  }
+}
+
+let bellBadAt = 0, bellDoneTimer = 0;
+Bell202.onEvent = (kind, info) => {
+  if (kind === 'badcrc') {
+    const t = Date.now();
+    if (t - bellBadAt > 2500) {
+      bellBadAt = t;
+      addChatMsg('Bell 202 · frame failed CRC (' + (info && info.bytes || '?') + ' B) — dropped', 'sys');
+    }
+  }
+};
+
+const TAP_FFT = 32768, TAP_TAIL = 256, TAP_POLL_MS = 50;
+function pollTap() {
+  if (!rxListening || !rxTap || !rxTapBuf) return;
+  const b = rxTapBuf, N = b.length, L = TAP_TAIL;
+  rxTap.getFloatTimeDomainData(b);
+  let fresh;
+  if (!rxTapTail) {
+    fresh = b;
+  } else {
+    const t = rxTapTail, t0 = t[0];
+    let found = -1;
+    for (let p = N - L; p >= 0; p--) {          
+      if (b[p] !== t0) continue;
+      let i = 1;
+      while (i < L && b[p + i] === t[i]) i++;
+      if (i === L) { found = p; break; }
+    }
+    fresh = found >= 0 ? b.subarray(found + L) : b;
+  }
+  rxTapTail = b.slice(N - L);
+  if (fresh.length) bellTapProcess(fresh);
+}
+
+function bellTapProcess(samples) {
+  if (!rxListening || State.mod !== 'bell202') return;
+  if (txInFlight || State.tx) { Bell202.resetRx(); return; }   
+  let frames;
+  try {
+    frames = Bell202.decode(samples, rxDecodeCtx.sampleRate);
+  } catch (err) {
+    console.warn('Bell202 decode', err);
+    Bell202.resetRx();
+    return;
+  }
+  for (let i = 0; i < frames.length; i++) {
+    try { handleIncomingFrame(frames[i]); } catch (err) { console.warn('frame handler', err); }
+  }
+  if (frames.length) {
+    setXfer('Done', 100, frames.length + ' Bell frame' + (frames.length === 1 ? '' : 's'));
+    clearTimeout(bellDoneTimer);
+    bellDoneTimer = setTimeout(() => setXfer(null), 500);
+  }
+}
+
+function hardDecode(samples, sr) {
+  if (!samples || samples.length < 400) return;
+
+  if (txInFlight) return;
+
+  let peak = 0;
+  for (let i = 0; i < samples.length; i += 8) {
+    const a = Math.abs(samples[i]);
+    if (a > peak) peak = a;
+  }
+  if (peak > 0.001) {
+    const scale = 0.4 / peak;
+    const norm = new Float32Array(samples.length);
+    for (let i = 0; i < samples.length; i++) norm[i] = samples[i] * scale;
+    samples = norm;
+  }
+
+  let found = 0;
+  let scanFrom = 0;
+  const seen = new Set();
+  for (let guard = 0; guard < 12; guard++) {
+    const hit = tryExtractOnePacket(samples, sr, scanFrom);
+    if (!hit) break;
+    if (!seen.has(hit.text)) {
+      seen.add(hit.text);
+      found++;
+      handleIncomingFrame(hit.text);
+    }
+    scanFrom = Math.max(scanFrom + 1, hit.afterSample | 0);
+    if (scanFrom >= samples.length - 400) break;
+  }
+
+  if (found > 0) {
+    setXfer('Done', 100, found + ' packet' + (found === 1 ? '' : 's'));
+    setTimeout(() => setXfer(null), 500);
+  } else {
+    setXfer(null);
+  }
+}
+
+const SSTV_MAX_IMAGES = 10;
+const SSTV_REQUEST_INTERVAL_MS = 19000;
+const SSTV_GAP_MS = 1800;          // short guard after each numbered announcement          
+const SSTV_MAX_PASSES = 4;
+const SSTV_RETRY_LIMIT = PROTOCOL_RETRY_LIMIT;       // every SSTV control/frame operation gets up to 10 attempts         
+const SSTV_ACK_WAIT_MS = 35000;    
+const SSTV_SILENCE_MS = 3500;      
+const SSTV_HARDSTOP_MS = 38500;    
+const SSTV_IDLE_MS = 100000;       
+const SSTV_GOOD = 0.96;            
+const SSTV = {
+  W: 320, H: 240, vis: 0x08,
+  syncMs: 9.0, porchMs: 3.0, yMs: 88.0, sepMs: 4.5, porch2Ms: 1.5, cMs: 44.0,
+  blackHz: 1500, whiteHz: 2300, syncHz: 1200, centerHz: 1900
+};
+
+function sstvEncode(imageData, sr) {
+  const W = SSTV.W, H = SSTV.H;
+  const ms = v => Math.round(v / 1000 * sr);
+  const syncS = ms(SSTV.syncMs), porchS = ms(SSTV.porchMs), yS = ms(SSTV.yMs);
+  const sepS = ms(SSTV.sepMs), porch2S = ms(SSTV.porch2Ms), cS = ms(SSTV.cMs);
+  const lineS = syncS + porchS + yS + sepS + porch2S + cS;
+  const visMs = 300 + 10 + 300 + 10 * 30;
+  const total = ms(visMs) + H * lineS + ms(60);
+  const out = new Float32Array(total);
+  const TWO_PI = 2 * Math.PI;
+  let phase = 0, p = 0;
+  const tone = (freq, n) => {
+    const step = TWO_PI * freq / sr;
+    for (let i = 0; i < n && p < total; i++) {
+      out[p++] = 0.75 * Math.sin(phase);
+      phase += step;
+      if (phase > TWO_PI * 4096) phase -= Math.floor(phase / TWO_PI) * TWO_PI;
+    }
+  };
+  const hz = v => SSTV.blackHz + (v / 255) * (SSTV.whiteHz - SSTV.blackHz);
+
+  tone(1900, ms(300)); tone(1200, ms(10)); tone(1900, ms(300));
+  tone(1200, ms(30));
+  let ones = 0;
+  for (let i = 0; i < 7; i++) { const b = (SSTV.vis >> i) & 1; ones += b; tone(b ? 1100 : 1300, ms(30)); }
+  tone((ones & 1) ? 1100 : 1300, ms(30));
+  tone(1200, ms(30));
+
+  const d = imageData.data, n = W * H;
+  const Y = new Uint8ClampedArray(n), Cr = new Uint8ClampedArray(n), Cb = new Uint8ClampedArray(n);
+  for (let i = 0; i < n; i++) {
+    const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2];
+    const y = 0.299 * r + 0.587 * g + 0.114 * b;
+    Y[i] = Math.round(y);
+    Cr[i] = Math.round((r - y) * 0.713 + 128);
+    Cb[i] = Math.round((b - y) * 0.564 + 128);
+  }
+  const cw = W / 2;
+  for (let line = 0; line < H; line++) {
+    const even = (line & 1) === 0;
+    tone(SSTV.syncHz, syncS);
+    tone(SSTV.blackHz, porchS);
+    for (let x = 0; x < W; x++) tone(hz(Y[line * W + x]), Math.round((x + 1) * yS / W) - Math.round(x * yS / W));
+    tone(even ? SSTV.blackHz : SSTV.whiteHz, sepS);
+    tone(1900, porch2S);
+    const plane = even ? Cr : Cb;
+    for (let cx = 0; cx < cw; cx++) {
+      const avg = (plane[line * W + cx * 2] + plane[line * W + cx * 2 + 1]) >> 1;
+      tone(hz(avg), Math.round((cx + 1) * cS / cw) - Math.round(cx * cS / cw));
+    }
+  }
+  const fade = Math.round(sr * 0.004);
+  for (let i = 0; i < fade; i++) { const g = i / fade; out[i] *= g; out[total - 1 - i] *= g; }
+  return out;
+}
+
+function sstvFmDemod(pcm, sr) {
+  const n = pcm.length, C = SSTV.centerHz;
+  let L = Math.round(sr / 3800);
+  if (!(L & 1)) L++;
+  if (L < 3) L = 3;
+  const half = (L - 1) >> 1;
+  const I = new Float32Array(n), Q = new Float32Array(n);
+  const w = 2 * Math.PI * C / sr;
+  let c = 1, s = 0;
+  const dc = Math.cos(w), ds = Math.sin(w);
+  for (let i = 0; i < n; i++) {
+    if ((i & 1023) === 0) { c = Math.cos(w * i); s = -Math.sin(w * i); }
+    I[i] = pcm[i] * c; Q[i] = pcm[i] * s;
+    const nc = c * dc - s * (-ds), ns = s * dc + c * (-ds);
+    c = nc; s = ns;
+  }
+  const tmp = new Float32Array(n);
+  const box = a => {
+    let acc = 0; const inv = 1 / L;
+    for (let i = 0; i <= Math.min(half, n - 1); i++) acc += a[i];
+    for (let i = 0; i < n; i++) {
+      tmp[i] = acc * inv;
+      const add = i + half + 1, sub = i - half;
+      if (add < n) acc += a[add];
+      if (sub >= 0) acc -= a[sub];
+    }
+    a.set(tmp);
+  };
+  box(I); box(Q); box(I); box(Q);
+  const f = new Float32Array(n);
+  const k = sr / (2 * Math.PI);
+  let pi = I[0], pq = Q[0];
+  f[0] = C;
+  for (let i = 1; i < n; i++) {
+    const ci = I[i], cq = Q[i];
+    let hz = C + k * Math.atan2(cq * pi - ci * pq, ci * pi + cq * pq);
+    f[i] = hz < 900 ? 900 : hz > 2700 ? 2700 : hz;
+    pi = ci; pq = cq;
+  }
+  return f;
+}
+function sstvPrefix(f) {
+  const p = new Float64Array(f.length + 1);
+  for (let i = 0; i < f.length; i++) p[i + 1] = p[i] + f[i];
+  return p;
+}
+
+function sstvSmooth(P, n, sr) {
+  const h = Math.max(2, Math.round(sr * 0.0005));
+  const out = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const a = i - h < 0 ? 0 : i - h, b = i + h > n ? n : i + h;
+    out[i] = (P[b] - P[a]) / (b - a);
+  }
+  return out;
+}
+function sstvMean(P, a, b) {
+  a = Math.round(a); b = Math.round(b);
+  if (a < 0) a = 0;
+  if (b > P.length - 1) b = P.length - 1;
+  if (b <= a) return SSTV.centerHz;
+  return (P[b] - P[a]) / (b - a);
+}
+function sstvLum(freq) {
+  const t = (freq - SSTV.blackHz) / (SSTV.whiteHz - SSTV.blackHz);
+  return Math.max(0, Math.min(255, Math.round(t * 255)));
+}
+function sstvFindVis(P, f0, sr) {
+  const ms = v => v / 1000 * sr, n = f0.length;
+  const f = sstvSmooth(P, n, sr);
+  const near = (hz, c, tol) => Math.abs(hz - c) < tol;
+  const sm = i => sstvMean(P, i - ms(1), i + ms(1));
+  let runStart = -1;
+  for (let i = 0; i < n; i++) {
+    if (f[i] > 1050 && f[i] < 1380) { if (runStart < 0) runStart = i; continue; }
+    if (runStart < 0) continue;
+    const runEnd = i, len = runEnd - runStart;
+    runStart = -1;
+    if (len < ms(5) || len > ms(16)) continue;
+    const rs = runEnd - len;
+    if (rs - ms(200) < 0 || runEnd + ms(600) > n) continue;
+    const before = sstvMean(P, rs - ms(200), rs - ms(15));
+    const after = sstvMean(P, runEnd + ms(15), runEnd + ms(280));
+    if (!near(before, 1900, 120) || !near(after, 1900, 120)) continue;
+    let sb = -1;
+    for (let j = Math.round(runEnd + ms(250)); j < runEnd + ms(380) && j < n; j++) {
+      if (sm(j) < 1550) { sb = j; break; }
+    }
+    if (sb < 0) continue;
+    const bit = ms(30);
+    if (!near(sstvMean(P, sb + bit * 0.25, sb + bit * 0.75), 1200, 90)) continue;
+    let vis = 0, ones = 0;
+    for (let b = 0; b < 7; b++) {
+      const a = sb + bit * (b + 1);
+      if (sstvMean(P, a + bit * 0.25, a + bit * 0.75) < 1200) { vis |= (1 << b); ones++; }
+    }
+    const pa = sb + bit * 8;
+    const parity = sstvMean(P, pa + bit * 0.25, pa + bit * 0.75) < 1200 ? 1 : 0;
+    if (!near(sstvMean(P, sb + bit * 9.25, sb + bit * 9.75), 1200, 120)) continue;
+    return { vis, parityOk: ((ones + parity) & 1) === 0, dataStart: Math.round(sb + bit * 10),
+             leaderHz: sstvMean(P, runEnd + ms(30), runEnd + ms(250)) };
+  }
+  return null;
+}
+
+function sstvForceStart(P, f0, sr) {
+  const ms = v => v / 1000 * sr, n = f0.length, lineS = ms(150), tol = ms(4);
+  const f = sstvSmooth(P, n, sr);
+  const runs = [];
+  let rs = -1;
+  for (let i = 0; i < n; i++) {
+    const inS = f[i] > 1050 && f[i] < 1360;
+    if (inS) { if (rs < 0) rs = i; }
+    else if (rs >= 0) { const len = i - rs; if (len >= ms(5) && len <= ms(14)) runs.push(rs + len / 2); rs = -1; }
+  }
+  for (let a = 0; a < runs.length; a++) {
+    let c = runs[a], k = 0, j = a + 1;
+    for (;;) {
+      while (j < runs.length && runs[j] < c + lineS - tol) j++;
+      if (j < runs.length && Math.abs(runs[j] - (c + lineS)) <= tol) { c = runs[j]; k++; j++; } else break;
+    }
+    if (k >= 8) return Math.round(runs[a] - ms(SSTV.syncMs) / 2);
+  }
+  return -1;
+}
+function sstvFindSync(P, sr, expected, radius) {
+  const ms = v => v / 1000 * sr;
+  const w = Math.round(ms(SSTV.syncMs * 0.5));
+  const step = Math.max(1, Math.round(ms(0.1)));
+  const lo = Math.round(expected - radius), hi = Math.round(expected + radius);
+  let best = 1e9, bestPos = -1;
+  for (let i = lo; i < hi; i += step) {
+    if (i < 0 || i + w >= P.length - 1) continue;
+    const m = (P[i + w] - P[i]) / w;
+    if (m < best) { best = m; bestPos = i; }
+  }
+  if (bestPos < 0 || best > 1350) return -1;
+  const lim = best + 50;
+  let a = bestPos, b = bestPos;
+  while (a - step >= lo && (P[a - step + w] - P[a - step]) / w <= lim) a -= step;
+  while (b + step < hi && b + step + w < P.length - 1 && (P[b + step + w] - P[b + step]) / w <= lim) b += step;
+  return Math.round((a + b) / 2 + w / 2 - ms(SSTV.syncMs) / 2);
+}
+function sstvFillChroma(plane, has, W, H) {
+  let prev = -1;
+  const prevOf = new Int16Array(H);
+  for (let y = 0; y < H; y++) { if (has[y]) prev = y; prevOf[y] = prev; }
+  let next = -1;
+  for (let y = H - 1; y >= 0; y--) {
+    if (has[y]) { next = y; continue; }
+    const p = prevOf[y], dst = y * W;
+    if (p >= 0 && next >= 0) {
+      const a = p * W, b = next * W;
+      for (let x = 0; x < W; x++) plane[dst + x] = (plane[a + x] + plane[b + x]) >> 1;
+    } else if (p >= 0) plane.copyWithin(dst, p * W, p * W + W);
+    else if (next >= 0) plane.copyWithin(dst, next * W, next * W + W);
+  }
+}
+function sstvToRGBA(Yp, Crp, Cbp, W, H) {
+  const d = new Uint8ClampedArray(W * H * 4);
+  for (let i = 0; i < W * H; i++) {
+    const Y = Yp[i], Cr = Crp[i] - 128, Cb = Cbp[i] - 128;
+    d[i * 4] = Y + 1.402 * Cr;
+    d[i * 4 + 1] = Y - 0.344136 * Cb - 0.714136 * Cr;
+    d[i * 4 + 2] = Y + 1.772 * Cb;
+    d[i * 4 + 3] = 255;
+  }
+  return d;
+}
+
+function sstvNewAcc() {
+  const W = SSTV.W, H = SSTV.H;
+  const noise = new Float32Array(H); noise.fill(Infinity);
+  return { W, H, Y: new Uint8ClampedArray(W * H), Cr: new Uint8ClampedArray(W * H).fill(128), Cb: new Uint8ClampedArray(W * H).fill(128),
+           hasY: new Uint8Array(H), hasCr: new Uint8Array(H), hasCb: new Uint8Array(H), placed: new Uint8Array(H), noise };
+}
+
+function sstvCoverage(acc) {
+  const ns = [];
+  for (let r = 0; r < acc.H; r++) if (acc.hasY[r] && acc.placed[r]) ns.push(acc.noise[r]);
+  if (!ns.length) return { good: 0, have: 0, total: acc.H, frac: 0 };
+  ns.sort((a, b) => a - b);
+  const lim = ns[ns.length >> 1] * 2.5 + 40;
+  let good = 0;
+  for (let r = 0; r < acc.H; r++) if (acc.hasY[r] && acc.placed[r] && acc.noise[r] <= lim) good++;
+  return { good, have: ns.length, total: acc.H, frac: good / acc.H };
+}
+function sstvRender(acc) {
+  const W = acc.W, H = acc.H;
+  const Y = acc.Y.slice(), Cr = acc.Cr.slice(), Cb = acc.Cb.slice();
+  sstvFillChroma(Y, acc.hasY, W, H);
+  sstvFillChroma(Cr, acc.hasCr, W, H);
+  sstvFillChroma(Cb, acc.hasCb, W, H);
+  return sstvToRGBA(Y, Cr, Cb, W, H);
+}
+function sstvPrefixSq(f) {
+  const p = new Float64Array(f.length + 1);
+  for (let i = 0; i < f.length; i++) p[i + 1] = p[i] + f[i] * f[i];
+  return p;
+}
+
+function sstvOnset(pcm, sr) {
+  const w = Math.max(8, Math.round(sr * 0.01)), n = Math.floor(pcm.length / w);
+  const e = new Float32Array(n);
+  let mx = 0;
+  for (let k = 0; k < n; k++) {
+    let s = 0;
+    for (let i = k * w; i < (k + 1) * w; i++) s += pcm[i] * pcm[i];
+    e[k] = Math.sqrt(s / w);
+    if (e[k] > mx) mx = e[k];
+  }
+  for (let k = 0; k < n; k++) if (e[k] > mx * 0.3) return k * w;
+  return 0;
+}
+
+async function sstvDecodeInto(acc, pcm, sr, onProgress) {
+  const f = sstvFmDemod(pcm, sr);
+  let P = sstvPrefix(f);
+  const v = sstvFindVis(P, f, sr);
+  const W = SSTV.W, H = SSTV.H, ms = x => x / 1000 * sr;
+  let startAt, anchor, rowOffset = 0, leaderHz = 0;
+  if (v && v.vis === SSTV.vis) {
+    startAt = v.dataStart; anchor = 'vis'; leaderHz = v.leaderHz;
+    const cal = SSTV.centerHz / v.leaderHz;
+    if (Math.abs(cal - 1) > 0.002 && Math.abs(cal - 1) < 0.05) {
+      for (let i = 0; i < f.length; i++) f[i] *= cal;
+      P = sstvPrefix(f);
+    }
+  } else {
+    startAt = sstvForceStart(P, f, sr);
+    if (startAt < 0) return null;
+    anchor = 'comb';
+    const rr = (startAt - (sstvOnset(pcm, sr) + ms(910))) / ms(150), ro = Math.round(rr);
+    if (Math.abs(rr - ro) < 0.2 && ro >= 0 && ro < 40) rowOffset = ro; else anchor = 'blind';
+  }
+  const P2 = sstvPrefixSq(f);
+  const syncS = ms(SSTV.syncMs), porchS = ms(SSTV.porchMs), yS = ms(SSTV.yMs);
+  const sepS = ms(SSTV.sepMs), porch2S = ms(SSTV.porch2Ms), cS = ms(SSTV.cMs);
+  const lineS = syncS + porchS + yS + sepS + porch2S + cS;
+  const rows = [];
+  let scale = 1, prevLs = -1, expected = startAt, miss = 0;
+  for (let line = 0; line < H; line++) {
+    const ls = sstvFindSync(P, sr, expected + syncS * scale / 2, ms(14));
+    if (ls < 0) {
+      miss++; prevLs = -1; rows.push(null);
+      expected += lineS * scale;
+      if (expected + lineS * scale > P.length - 1) break;
+      continue;
+    }
+    if (prevLs >= 0) { const r = (ls - prevLs) / (lineS * scale); if (r > 0.97 && r < 1.03) scale *= 1 + (r - 1) * 0.1; }
+    prevLs = ls;
+    if (ls + lineS * scale > P.length - 1) break;
+    const yPx = yS * scale / W, cPx = cS * scale / (W / 2);
+    const y0 = ls + (syncS + porchS) * scale;
+    const y = new Uint8Array(W);
+    let nz = 0;
+    for (let x = 0; x < W; x++) {
+      const a = Math.round(y0 + x * yPx + yPx * 0.1), b = Math.round(y0 + (x + 1) * yPx - yPx * 0.1);
+      y[x] = sstvLum(sstvMean(P, a, b));
+      if (b > a && b < P.length) { const m = (P[b] - P[a]) / (b - a), m2 = (P2[b] - P2[a]) / (b - a); nz += Math.sqrt(Math.max(0, m2 - m * m)); }
+    }
+    const s0 = y0 + yS * scale;
+    const even = sstvMean(P, s0 + sepS * scale * 0.2, s0 + sepS * scale * 0.8) < 1900;
+    const c0 = s0 + (sepS + porch2S) * scale;
+    const c = new Uint8Array(W / 2);
+    for (let cx = 0; cx < W / 2; cx++) c[cx] = sstvLum(sstvMean(P, c0 + cx * cPx + cPx * 0.1, c0 + (cx + 1) * cPx - cPx * 0.1));
+    rows.push({ line, y, c, even, noise: nz / W });
+    expected = ls + lineS * scale;
+    if (line % 16 === 0) { if (onProgress) onProgress(line + 1, H); await sleep(0); }
+  }
+
+  let agree = 0, dis = 0;
+  for (let i = 0, k = 0; i < rows.length && k < 40; i++) {
+    const r = rows[i]; if (!r) continue; k++;
+    (((r.line + rowOffset) % 2 === 0) === r.even) ? agree++ : dis++;
+  }
+  if (dis > agree) rowOffset += 1;
+  let wrote = 0, lines = 0;
+  for (const r of rows) {
+    if (!r) continue;
+    lines++;
+    const row = r.line + rowOffset;
+    if (row < 0 || row >= H) continue;
+    const placed = anchor !== 'blind';                  
+    if (acc.hasY[row]) {
+      if (!placed && acc.placed[row]) continue;          
+      if ((placed || !acc.placed[row]) && acc.placed[row] === (placed ? 1 : 0) && !(r.noise < acc.noise[row] * 0.85)) continue;
+    }
+    acc.Y.set(r.y, row * W);
+    const plane = (row % 2 === 0) ? acc.Cr : acc.Cb;
+    for (let cx = 0; cx < W / 2; cx++) { plane[row * W + cx * 2] = r.c[cx]; plane[row * W + cx * 2 + 1] = r.c[cx]; }
+    acc.hasY[row] = 1; ((row % 2 === 0) ? acc.hasCr : acc.hasCb)[row] = 1;
+    acc.noise[row] = r.noise;
+    acc.placed[row] = placed ? 1 : 0;
+    wrote++;
+  }
+  return { anchor, rowOffset, lines, wrote, miss, leaderHz };
+}
+
+function sstvExtractUrls(markdown, limit) {
+  const src = String(markdown || ''), urls = [];
+  const push = u => {
+    if (!u || urls.length >= limit) return;
+    u = String(u).trim().replace(/^<|>$/g, '');
+    if (!/^https?:\/\//i.test(u) || /favicon|sprite|1x1|pixel\.|tracking|\.svg(\?|$)/i.test(u)) return;
+    if (urls.indexOf(u) < 0) urls.push(u);
+  };
+  let m;
+  const reMd = /!\[[^\]]*\]\((https?:\/\/[^)\s]+)\)/gi;
+  while ((m = reMd.exec(src))) push(m[1]);
+  const reHtml = /<img[^>]+src=["'](https?:\/\/[^"']+)["']/gi;
+  while ((m = reHtml.exec(src))) push(m[1]);
+  return urls;
+}
+function sstvLoadImage(url) {
+  const w = SSTV.W, h = SSTV.H;
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    const t = setTimeout(() => reject(new Error('image timeout')), 14000);
+    img.onload = () => {
+      clearTimeout(t);
+      try {
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        const x = c.getContext('2d');
+        x.fillStyle = '#000'; x.fillRect(0, 0, w, h);
+        const s = Math.max(w / img.width, h / img.height);
+        x.drawImage(img, (w - img.width * s) / 2, (h - img.height * s) / 2, img.width * s, img.height * s);
+        resolve(x.getImageData(0, 0, w, h));
+      } catch (e) { reject(e); }
+    };
+    img.onerror = () => {
+      if (img.dataset.fb) { clearTimeout(t); reject(new Error('image failed')); return; }
+      img.dataset.fb = '1'; img.src = url;
+    };
+    img.src = 'https://images.weserv.nl/?url=' + encodeURIComponent(url.replace(/^https?:\/\//, '')) +
+      '&w=' + w + '&h=' + h + '&fit=cover&output=png';
+  });
+}
+
+async function sstvTransmit(imageData) {
+  await ensureTx();
+  const samples = sstvEncode(imageData, txCtx.sampleRate);
+  const buf = txCtx.createBuffer(1, samples.length, txCtx.sampleRate);
+  buf.copyToChannel(samples, 0);
+  const durMs = buf.duration * 1000;
+  txInFlight = true;
+  State.tx = true; updateLEDs();
+  rxHadActivity = false; rxSilenceMs = 0; rxActivityMs = 0;
+  const src = txCtx.createBufferSource();
+  src.buffer = buf;
+  src.connect(txGain);
+  src.start(txCtx.currentTime + 0.04);
+  await sleep(durMs + 200);
+  State.tx = false; updateLEDs();
+  await sleep(300);
+  txInFlight = false;
+  rxHadActivity = false; rxSilenceMs = 0; rxActivityMs = 0;
+  return durMs;
+}
+
+let sstvAckWait = null;   
+function sstvWait(kinds, id, idx, ms, round) {
+  return new Promise(res => {
+    const w = { kinds, id, idx, round: round == null ? null : round, res, t: null };
+    w.t = setTimeout(() => { if (sstvAckWait === w) sstvAckWait = null; res('timeout'); }, ms);
+    sstvAckWait = w;
+  });
+}
+function sstvOnAck(p) {      
+  const w = sstvAckWait;
+  if (!w || w.kinds.indexOf(p.kind) < 0 || p.fields[0] !== w.id) return;
+
+  if (servingRid && w.id !== servingRid && p.fields[0] !== servingRid) return;
+  if (w.idx >= 0 && parseInt(p.fields[1], 10) !== w.idx) return;
+  if (w.round != null && parseInt(p.fields[2], 10) !== w.round) return;
+  clearTimeout(w.t); sstvAckWait = null; w.res(p.kind);
+}
+
+async function sstvServeImages(rid, pageText) {
+  if (!State.images) return;
+  try {
+    const urls = sstvExtractUrls(pageText, SSTV_MAX_IMAGES + 3);
+    const frames = [];
+    for (let i = 0; i < urls.length && frames.length < SSTV_MAX_IMAGES; i++) {
+      setXfer('Images', 92, 'Loading image ' + (frames.length + 1));
+      try { frames.push(await sstvLoadImage(urls[i])); }
+      catch (e) { addChatMsg('Image skipped: ' + (e.message || e), 'sys'); }
+    }
+    if (!frames.length) {
+      addChatMsg('No usable page images — SSTV skipped', 'sys');
+      await sendFrame('IMG', [rid, '0']);        
+      return;
+    }
+    const id = String(rid); 
+    let ready = false;
+    const bellMode = State.mod === 'bell202';
+    for (let a = 0; a < SSTV_RETRY_LIMIT && !ready; a++) {
+      setXfer('Images', 93, 'Asking Remote for ' + frames.length + ' image(s)');
+      addChatMsg('SSTV · offering ' + frames.length + ' image(s)', 'sys');
+      const waiting = sstvWait(['IRD'], id, -1, bellMode ? 15000 : 45000);
+      await sendFrame('IMG', [rid, String(frames.length)]);
+      ready = (await waiting) === 'IRD';
+    }
+    if (!ready) { addChatMsg('SSTV · Remote did not answer (Images On there?) — skipped', 'sys'); setXfer(null); return; }
+    // Always make exactly two complete, ordered rounds: 1..N, then 1..N.
+    // The Remote decides which slots are complete after both rounds.
+    for (let pass = 1; pass <= 2; pass++) {
+      addChatMsg('SSTV · round ' + pass + '/2 · sending images 1→' + frames.length, 'sys');
+      for (let i = 0; i < frames.length; i++) {
+        // Announce the one-based slot and round, then wait for the Remote to arm that slot.
+        // This prevents tail audio from the previous image being assigned to the next slot.
+        const imageNo = i + 1;
+        addChatMsg('SSTV · announce image ' + imageNo + '/' + frames.length + ' · round ' + pass + '/2', 'sys');
+        let accepted = false;
+        for (let attempt = 1; attempt <= SSTV_RETRY_LIMIT && !accepted; attempt++) {
+          // Repeat the numbered announcement before every retry so the Remote can re-arm the exact slot.
+          const waiting = sstvWait(['IREADY'], id, imageNo, SSTV_ACK_WAIT_MS, pass);
+          await sendFrame('IANN', [id, String(imageNo), String(pass), String(frames.length)]);
+          const armed = (await waiting) === 'IREADY';
+          if (!armed) {
+            addChatMsg('SSTV · image ' + imageNo + ' announcement retry ' + attempt + '/' + SSTV_RETRY_LIMIT, 'sys');
+            await sleep(900);
+            continue;
+          }
+          await sleep(SSTV_GAP_MS);
+          setXfer('SSTV', 94 + ((pass - 1) * frames.length + i + 1) / (frames.length * 2) * 5,
+            'Image ' + imageNo + '/' + frames.length + ' · round ' + pass + '/2 · try ' + attempt + '/' + SSTV_RETRY_LIMIT + ' · ~37 s');
+          await sstvTransmit(frames[i]);
+          setXfer('SSTV', 98, 'Round ' + pass + '/2 · image ' + imageNo + ' · waiting for ACK');
+          const r = await sstvWait(['IOK', 'INO'], id, imageNo, SSTV_ACK_WAIT_MS, pass);
+          if (r === 'IOK') {
+            accepted = true;
+            addChatMsg('SSTV · image ' + imageNo + ' received in round ' + pass + ' (try ' + attempt + ')', 'sys');
+          } else {
+            addChatMsg('SSTV · retrying image ' + imageNo + ' round ' + pass + ' (' + attempt + '/' + SSTV_RETRY_LIMIT + ')', 'sys');
+          }
+        }
+        if (!accepted) addChatMsg('SSTV · image ' + imageNo + ' incomplete after ' + SSTV_RETRY_LIMIT + ' retries in round ' + pass, 'sys');
+      }
+    }
+    for (let attempt = 0; attempt < SSTV_RETRY_LIMIT; attempt++) {
+      await sendFrame('IEND', [id, '2']);
+      if (attempt < SSTV_RETRY_LIMIT - 1) await sleep(900);
+    }
+    setXfer('Done', 100, 'Two image rounds sent · 10 retries enabled');
+    setTimeout(() => setXfer(null), 900);
+  } catch (e) {
+    addChatMsg('SSTV failed: ' + (e.message || e), 'sys');
+    setXfer(null);
+    txInFlight = false; State.tx = false; updateLEDs();
+  }
+}
+
+let sstvBurstT0 = 0;
+let lastRemote = null;   
+let sstvRx = null;       
+
+function sstvCapturing() { return !!(sstvRx && Date.now() < sstvRx.waitUntil); }
+function sstvTouch(rx, waitMs) {
+  rx.waitUntil = waitMs ? Date.now() + waitMs : 0;
+  if (rx.timer) clearTimeout(rx.timer);
+  rx.timer = setTimeout(() => sstvEndRx(rx), SSTV_IDLE_MS);
+}
+const ACK_TURNAROUND_MS = 600;
+const SSTV_ACK_REPEAT = 1;          // sender retries unanswered operations; do not queue ACK audio over the next frame
+const SSTV_ACK_INTERVAL_MS = 5000;
+function sstvSend(rx, kind, fields) {
+  rx.q = (rx.q || Promise.resolve()).then(async () => {
+    if (State.mod === 'bell202') await sleep(ACK_TURNAROUND_MS);
+    return sendFrame(kind, fields);
+  }).catch(() => {});
+  return rx.q;
+}
+function sstvSendAck(rx, kind, fields) {
+  rx.q = (rx.q || Promise.resolve()).then(async () => {
+    for (let attempt = 0; attempt < SSTV_ACK_REPEAT; attempt++) {
+      if (attempt) await sleep(SSTV_ACK_INTERVAL_MS);
+      if (State.mod === 'bell202') await sleep(ACK_TURNAROUND_MS);
+      try { await sendFrame(kind, fields); } catch (_) {}
+    }
+  }).catch(() => {});
+  return rx.q;
+}
+function sstvGalleryHTML(rx) {
+  const cells = [];
+  for (let i = 0; i < rx.count; i++) {
+    const s = rx.imgs[i];
+    if (s && s.uri) {
+      const cap = 'Image ' + (i + 1) + (s.complete ? '' : ' · ' + Math.round(s.cov * 100) + '% · pass ' + s.passes);
+      cells.push('<div class="sstv-cell"><img alt="Image ' + (i + 1) + '" src="' + s.uri + '"><div class="cap">' + cap + '</div></div>');
+    } else cells.push('<div class="sstv-cell"><div class="sstv-pending">' + (s && s.failed ? 'Not received' : 'Waiting…') + '</div></div>');
+  }
+  const missing = Array.isArray(rx.missing) && rx.missing.length ? '<div class="sstv-pending" style="margin-top:8px">Missing images: ' + rx.missing.join(', ') + '</div>' : '';
+  return '<div class="sstv-gallery" data-sstv-gallery><h4>Images <span class="sstv-badge">SSTV · 2 rounds</span></h4><div class="sstv-grid c' +
+    Math.min(5, rx.count) + '">' + cells.join('') + '</div>' + missing + '</div>';
+}
+function sstvApplyGallery(rx) {
+  const tab = tabs.find(t => t.id === rx.tabId);
+  if (!tab || !tab.html) return;
+  const base = tab.html.replace(/<div class="sstv-gallery" data-sstv-gallery>[\s\S]*$/, '');
+  tab.html = base + sstvGalleryHTML(rx);
+  const cached = PageCache.get(rx.url);
+  if (cached) PageCache.put(rx.url, { title: cached.title, html: tab.html, body: cached.body });
+  if (activeId === tab.id && tab.url === rx.url) {
+    $('relay-viewport').innerHTML = tab.html;
+    bindViewportLinks();
+  }
+}
+function sstvEndRx(rx) {
+  if (rx.timer) { clearTimeout(rx.timer); rx.timer = null; }
+  for (let i = 0; i < rx.count; i++) if (!rx.imgs[i] || !rx.imgs[i].uri) rx.imgs[i] = { failed: true };
+  sstvApplyGallery(rx);
+  if (sstvRx === rx) sstvRx = null;
+}
+function sstvOnAnnounce(rid, count) {
+  if (!State.images || State.role !== 'remote') return;
+
+  const mine = (lastRemote && lastRemote.rid === rid) || (pending && pending.rid === rid);
+  if (!mine || !(count >= 1 && count <= SSTV_MAX_IMAGES)) return;
+  if (sstvRx && sstvRx.timer) clearTimeout(sstvRx.timer);
+  const url = (lastRemote && lastRemote.url) || (pending && pending.url) || '';
+  const tabId = (lastRemote && lastRemote.tabId) || activeId;
+  const rx = sstvRx = { rid, id: String(rid), url, tabId, count, imgs: [], expect: null, expectRound: 1, expectToken: null, round: 1, missing: null, imageEnd: false, waitUntil: 0, timer: null, q: null };
+  sstvTouch(rx, 90000);
+  restartRecorderSoon();                       
+  addChatMsg('SSTV · expecting ' + count + ' image(s)', 'sys');
+  setXfer('Images', 95, 'Expecting ' + count + ' SSTV image(s)');
+  sstvApplyGallery(rx);
+  sstvSend(rx, 'IRD', [rx.id]);
+}
+function sstvOnPass(id, imageNo, round, announcedCount) {
+  const rx = sstvRx;
+  // Announcements are deliberately one-based on the wire: image 1 means image 1.
+  const idx = Number(imageNo) - 1;
+  if (!rx || rx.id !== id || !Number.isInteger(imageNo) || !(idx >= 0 && idx < rx.count)) return;
+  if (announcedCount && announcedCount !== rx.count) return;
+  rx.expect = idx;
+  rx.expectRound = round || 1;
+  rx.round = Math.max(rx.round || 1, rx.expectRound);
+  rx.expectToken = rx.expectRound + ':' + idx;
+  sstvTouch(rx, 90000);
+  sstvSend(rx, 'IREADY', [rx.id, String(idx + 1), String(rx.expectRound)]);
+}
+function sstvOnImageEnd(id) {
+  const rx = sstvRx;
+  if (!rx || rx.id !== id) return;
+  const missing = [];
+  for (let i = 0; i < rx.count; i++) if (!(rx.imgs[i] && rx.imgs[i].complete)) missing.push(i + 1);
+  rx.imageEnd = true;
+  rx.missing = missing;
+  if (missing.length) {
+    addChatMsg('SSTV · missing images: ' + missing.join(', '), 'sys');
+    setXfer('Done', 100, 'Missing image' + (missing.length === 1 ? '' : 's') + ': ' + missing.join(', '));
+  } else {
+    addChatMsg('SSTV · all ' + rx.count + ' images received', 'sys');
+    setXfer('Done', 100, 'All ' + rx.count + ' images ready');
+  }
+  sstvApplyGallery(rx);
+  sstvSendAck(rx, 'IACK', [rx.id, missing.join(',')]);
+  setTimeout(() => setXfer(null), 1400);
+}
+function sstvAllDone(rx) {
+  for (let i = 0; i < rx.count; i++) if (!(rx.imgs[i] && rx.imgs[i].complete)) return false;
+  return true;
+}
+
+async function sstvHandleBurst(samples, sr) {
+  const rx = sstvRx;
+  if (!rx) return false;
+  const durS = samples.length / sr;
+  if (durS < 6) return false;                       
+  const idx = rx.expect;
+  // Never infer a slot from completion state: every burst must follow a live IANN.
+  if (idx == null || rx.expectRound == null) return false;
+  const token = rx.expectRound + ':' + idx;
+  if (rx.expectToken !== token) return false;
+  const slot = rx.imgs[idx] && rx.imgs[idx].acc ? rx.imgs[idx] : (rx.imgs[idx] = { acc: sstvNewAcc(), passes: 0, cov: 0, complete: false, uri: '' });
+  let peak = 0;
+  for (let i = 0; i < samples.length; i += 7) { const a = Math.abs(samples[i]); if (a > peak) peak = a; }
+  let info = null;
+  try {
+    info = await sstvDecodeInto(slot.acc, samples, sr, (l, h) => setXfer('SSTV', 96 + 3 * l / h, 'Decoding image ' + (idx + 1) + ' · line ' + l + '/' + h));
+  } catch (e) { console.warn('SSTV decode', e); }
+  if (sstvRx !== rx) return true;
+  rx.expect = null;
+  rx.expectToken = null;
+  if (!info || !info.wrote) {
+    if (durS < 30 && !(info && info.lines)) return false;   
+    addChatMsg('SSTV capture ' + durS.toFixed(0) + ' s, level ' + peak.toFixed(2) + ': ' +
+      (info ? 'no new rows' : 'no sync found') + (peak < 0.02 ? ' — very quiet, raise Router volume' : '') + ' — asking for another pass', 'sys');
+    sstvTouch(rx, 90000);
+    sstvSendAck(rx, 'INO', [rx.id, String(idx + 1), String(rx.expectRound)]);
+    return true;
+  }
+  slot.passes++;
+  const cov = sstvCoverage(slot.acc);
+  slot.cov = cov.frac;
+  slot.complete = cov.frac >= SSTV_GOOD;
+  const c = document.createElement('canvas');
+  c.width = slot.acc.W; c.height = slot.acc.H;
+  c.getContext('2d').putImageData(new ImageData(sstvRender(slot.acc), slot.acc.W, slot.acc.H), 0, 0);
+  slot.uri = c.toDataURL('image/jpeg', 0.85);
+  addChatMsg('SSTV image ' + (idx + 1) + '/' + rx.count + ' · pass ' + slot.passes + ' · ' + Math.round(cov.frac * 100) + '% clean rows · ' +
+    (info.anchor === 'vis' ? 'VIS lock' : 'line-sync lock'), 'sys');
+  sstvApplyGallery(rx);
+  const done = sstvAllDone(rx);
+  sstvTouch(rx, done ? 0 : 90000);
+  if (done) { setXfer('Done', 100, 'Images ready'); setTimeout(() => setXfer(null), 900); }
+  else setXfer('Images', 96, 'Image ' + (idx + 1) + ' ' + (slot.complete ? 'complete' : Math.round(cov.frac * 100) + '%'));
+  sstvSendAck(rx, slot.complete ? 'IOK' : 'INO', [rx.id, String(idx + 1), String(rx.expectRound)]);
+  return true;
+}
+
+function setMod(mod) {
+  mod = String(mod || '');
+  if (mod === '10') mod = 'fsk10';
+  if (mod === '20') mod = 'fsk20';
+  if (mod !== 'fsk10' && mod !== 'fsk20' && mod !== 'bell202') return;
+  State.mod = mod;
+  if (mod === 'fsk10') SYM_RATE = 10;
+  else if (mod === 'fsk20') SYM_RATE = 20;
+  try {
+    localStorage.setItem('ab-mod', mod);
+    localStorage.setItem('ab-sym-rate', String(SYM_RATE));
+  } catch (_) {}
+  document.querySelectorAll('.mod-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.mod === mod));
+  try { Bell202.resetRx(); } catch (_) {}
+  const label = mod === 'bell202'
+    ? 'Bell 202 AFSK · 1200 baud (mark 1200 / space 2200)'
+    : ('4-FSK · ' + SYM_RATE + ' sym/s');
+  addChatMsg('Modulation · ' + label, 'sys');
+  if ($('chat-status') && State.listening) {
+    $('chat-status').textContent = mod === 'bell202' ? 'Listening · Bell 202' : 'Listening · 4-FSK';
+  }
+  const hint = $('mod-hint');
+  if (hint) {
+    hint.innerHTML = mod === 'bell202'
+      ? '<b>Bell 202 AFSK</b> — 1200 baud · mark 1200 Hz / space 2200 Hz. Classic packet-radio modem. Same mode required on both devices. Frames are AB|PKT|… text over UART 8N1 with a CRC-16, decoded live from raw audio.'
+      : '<b>4-FSK</b> — 1000 / 1400 / 1800 / 2200 Hz · ' + SYM_RATE + ' sym/s. Same rate required on both devices. Pages transfer in small chunks (up to 20,000 characters).';
+  }
+
+  if (rxListening && !rxCalibrating) beginAmbientStudy('modulation change');
+}
+
+function setImages(on) {
+  State.images = !!on;
+  try { localStorage.setItem('ab-images', on ? 'on' : 'off'); } catch (_) {}
+  document.querySelectorAll('.img-btn').forEach(b => b.classList.toggle('active', (b.dataset.img === 'on') === !!on));
+  if (!on && sstvRx) sstvEndRx(sstvRx);
+}
+
+let pending = null;       
+let routerBusy = false;
+let servingRid = null;    
+let reqQueue = [];        
+
+function newRid() {
+
+  return 'R' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+function drainReqQueue() {
+  if (routerBusy) return;
+  if (nakQueue.length) {
+    const q = nakQueue.shift();
+    if (q.img) onRouterImageReq(q.rid); else onRouterNak(q.rid, q.list);
+    return;
+  }
+  if (!reqQueue.length) return;
+  const next = reqQueue.shift();
+  if (next) {
+    addChatMsg('Dequeued REQ · ' + hostFrom(next.url) + ' · ' + next.rid, 'sys');
+    onRouterRequest(next.rid, next.url);
+  }
+}
+
+function handleIncomingFrame(raw) {
+  const p = parseProto(raw);
+  if (!p) return;
+
+  if (p.kind === 'CHAT') {
+    const msg = p.fields.join('|');
+    addChatMsg(msg, 'them');
+    return;
+  }
+  if (p.kind === 'HELLO') {
+    addChatMsg('Peer hello · ' + (p.fields[1] || 'device'), 'sys');
+    return;
+  }
+
+  if (p.kind === 'IMG' || p.kind === 'IANN' || p.kind === 'IMP' || p.kind === 'IEND' || p.kind === 'IREADY' || p.kind === 'IRD' || p.kind === 'IOK' || p.kind === 'INO') {
+    if (!State.images) return;
+    if (State.role === 'remote') {
+
+      if (p.kind === 'IMG') {
+        const rid = p.fields[0];
+        const ok = (pending && rid === pending.rid) || (lastRemote && rid === lastRemote.rid);
+        if (!ok) return;
+        const cnt = parseInt(p.fields[1], 10) || 0;
+        if (cnt === 0) { if (lastRemote && lastRemote.rid === rid) lastRemote.noImages = true; addChatMsg('SSTV · page has no images', 'sys'); }
+        sstvOnAnnounce(rid, cnt);
+      } else if (p.kind === 'IANN') {
+        const id = p.fields[0];
+        if (sstvRx && id !== sstvRx.id && id !== sstvRx.rid) return;
+        sstvOnPass(id, parseInt(p.fields[1], 10), parseInt(p.fields[2], 10) || 1, parseInt(p.fields[3], 10) || 0);
+      } else if (p.kind === 'IEND') {
+        const id = p.fields[0];
+        if (sstvRx && id !== sstvRx.id && id !== sstvRx.rid) return;
+        sstvOnImageEnd(id);
+      }
+    } else if (p.kind === 'IREADY' || p.kind === 'IRD' || p.kind === 'IOK' || p.kind === 'INO') {
+
+      sstvOnAck(p);
+    }
+    return;
+  }
+
+  if (State.role === 'router') {
+    if (p.kind === 'REQ') {
+      let rid = p.fields[0], url = p.fields.slice(1).join('|');
+      if (!url) { url = rid; rid = newRid(); }
+      rid = String(rid || newRid());
+      if (!rid) rid = newRid();
+      if (routerBusy) {
+
+        if (!reqQueue.some(q => q.rid === rid)) {
+          reqQueue.push({ rid, url });
+          addChatMsg('Queued REQ · ' + hostFrom(url) + ' · ' + rid + ' (' + reqQueue.length + ' waiting)', 'sys');
+          setXfer('Queued', 5, reqQueue.length + ' remote(s) waiting');
+        }
+        return;
+      }
+      onRouterRequest(rid, url);
+    } else if (p.kind === 'NAK') {
+      onRouterNak(p.fields[0], p.fields[1]);
+    } else if (p.kind === 'IRQ') {
+      onRouterImageReq(p.fields[0]);
+    }
+    return;
+  }
+
+  if (!pending || !pending.rid) return;
+  if (p.kind !== 'COR' && p.kind !== 'DATA' && p.kind !== 'END') return;
+  const rid = p.fields[0] != null ? String(p.fields[0]) : '';
+  if (!rid || rid !== pending.rid) return; 
+  if (pending._finished) return;
+
+  if (p.kind === 'COR') {
+    pending.acked = true;
+    pending.confirmed = true;
+    setXfer('Receiving', 25, 'COR · ' + rid);
+    addChatMsg('COR from Router · ' + rid, 'sys');
+    armRepair(pending);
+    return;
+  }
+  if (p.kind === 'DATA') {
+    if (p.fields.length < 4) return;
+    const seq = parseInt(p.fields[1], 10);
+    const total = parseInt(p.fields[2], 10);
+    const body = p.fields.slice(3).join('|');
+    if (!pending.packets) pending.packets = {};
+    pending.packets[seq] = body;
+    pending.total = total;
+    const got = Object.keys(pending.packets).length;
+    setXfer('Receiving', 30 + (got / Math.max(total, 1)) * 50, got + '/' + total + ' · ' + rid);
+    addChatMsg('DATA ' + (seq + 1) + '/' + total, 'sys');
+    const pp = pending;
+    maybeFinishRemote();
+    if (pp && !pp._finished) armRepair(pp);
+    return;
+  }
+  if (p.kind === 'END') {
+    pending.endTitle = p.fields.slice(1).join('|') || 'Page';
+    pending.gotEnd = true;
+    addChatMsg('END · ' + (pending.endTitle || '').slice(0, 24), 'sys');
+    const pe = pending;
+    maybeFinishRemote();
+    if (pe && !pe._finished) armRepair(pe);
+  }
+}
+
+function finishRemote(p) {
+  if (!p || p._finished) return;
+  p._finished = true;
+  if (p._rt) { clearTimeout(p._rt); p._rt = 0; }
+  const total = p.total || 0;
+  const got = p.packets ? Object.keys(p.packets).length : 0;
+  const ordered = [];
+  for (let i = 0; i < total; i++) ordered.push(p.packets && p.packets[i] != null ? p.packets[i] : '');
+  const body = ordered.join('').replace(/\{\{PIPE\}\}/g, '|');
+  const title = p.endTitle || 'Page';
+  const missing = total > got ? ' · ' + (total - got) + ' missing' : '';
+  const html = '<article class="doc"><h3>' + esc(title) + '</h3><div class="doc-body">' +
+    pageHTML(body || '(no body)') + '</div><div class="doc-meta">Delivered over ' + (State.mod === 'bell202' ? 'Bell 202' : '4-FSK') + ' · rid ' +
+    esc(p.rid || '') + ' · ' + got + '/' + total + ' packets' + missing + '</div></article>';
+  if (p.resolve) p.resolve({ title, body, html });
+  if (pending === p) pending = null;
+  if (State.images && State.role === 'remote' && p.rid) setTimeout(() => sstvRequest(p.rid), 700);
+}
+
+function maybeFinishRemote() {
+  const p = pending;
+  if (!p || !p.gotEnd || p._finished) return;
+  const total = p.total || 0;
+  const got = p.packets ? Object.keys(p.packets).length : 0;
+  if (total > 0 && got < total) return;
+  finishRemote(p);
+}
+
+async function onRouterRequest(rid, url) {
+  if (State.role !== 'router') return;
+  rid = String(rid || newRid());
+  if (routerBusy) {
+    if (!reqQueue.some(q => q.rid === rid)) {
+      reqQueue.push({ rid, url });
+      addChatMsg('Queued REQ · ' + hostFrom(url) + ' · ' + rid, 'sys');
+    }
+    return;
+  }
+  routerBusy = true;
+  servingRid = rid;
+  addChatMsg('Serving REQ · ' + hostFrom(url) + ' · ' + rid, 'sys');
+  setXfer('Serving', 10, hostFrom(url) + ' · ' + rid);
+  try {
+    await sendFrame('COR', [rid]);
+    setXfer('Serving', 20, 'COR · ' + rid);
+    addChatMsg('COR sent · ' + rid, 'sys');
+
+    if (!url || url === 'ab://welcome') {
+      await sendFrame('END', [rid, 'Home']);
+      setXfer('Done', 100, 'home');
+      setTimeout(() => setXfer(null), 500);
+      routerBusy = false;
+      servingRid = null;
+      drainReqQueue();
+      return;
+    }
+
+    let text = '', title = hostFrom(url);
+    try {
+      setXfer('Loading', 35, 'fetch · ' + rid);
+      addChatMsg('Fetching ' + hostFrom(url) + '…', 'sys');
+      const reader = 'https://r.jina.ai/http://' + url.replace(/^https?:\/\//, '');
+      const resp = await fetch(reader, { headers: { Accept: 'text/plain' } });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      text = await resp.text();
+      const tm = text.match(/^Title:\s*(.+)$/m) || text.match(/^#\s+(.+)$/m);
+      if (tm) title = tm[1].trim().slice(0, 50);
+    } catch (e) {
+      text = 'Example Domain\n\nThis domain is for use in illustrative examples in documents. You may use this domain without permission.\n\n(Fetch failed: ' + (e.message || e) + ')';
+      title = hostFrom(url) || 'Page';
+      addChatMsg('Fetch failed — sending fallback text', 'sys');
+    }
+
+    let body = text.replace(/\r\n/g, '\n').trim();
+    body = body.replace(/^Title:\s*.+\n+/i, '').replace(/^Markdown Content:\s*/i, '');
+    body = body.replace(/\n{2,}/g, '\n').slice(0, MAX_PAGE_CHARS);
+    const safe = body.replace(/\|/g, '{{PIPE}}');
+
+    const packets = chunkText(safe, packetChars());
+    if (!packets.length) packets.push('(empty)');
+    const total = packets.length;
+    ServedCache.put(rid, { packets, total, title: title.slice(0, 40), text });
+    addChatMsg('Sending ' + total + ' DATA · rid ' + rid, 'sys');
+
+    for (let i = 0; i < total; i++) {
+      if (servingRid !== rid) break; 
+      setXfer('Transmitting', 40 + ((i + 1) / total) * 50, (i + 1) + '/' + total + ' · ' + rid);
+      await sendFrame('DATA', [rid, String(i), String(total), packets[i]]);
+    }
+    await sendFrame('END', [rid, title.slice(0, 40)]);
+
+    setXfer('Done', 100, title.slice(0, 30));
+    setTimeout(() => setXfer(null), 600);
+    addChatMsg('Served ' + total + ' pkt → ' + title.slice(0, 28) + ' · ' + rid, 'sys');
+  } catch (e) {
+    addChatMsg('Serve error: ' + (e.message || e), 'sys');
+    setXfer(null);
+  }
+  routerBusy = false;
+  servingRid = null;
+  drainReqQueue();
+}
+
+const ServedCache = {
+  map: {}, order: [],
+  put(rid, v) {
+    this.map[rid] = v;
+    this.order.push(rid);
+    while (this.order.length > 4) delete this.map[this.order.shift()];
+  },
+  get(rid) { return this.map[rid] || null; }
+};
+const NAK_MAX_ROUNDS = PROTOCOL_RETRY_LIMIT;
+let nakQueue = [];        
+
+async function onRouterImageReq(rid) {
+  rid = String(rid || '');
+  const c = ServedCache.get(rid);
+  if (!State.images || !c || !c.text || c.imgBusy) return;
+  if (routerBusy) {
+    if (!nakQueue.some(q => q.rid === rid && q.img)) nakQueue.push({ rid, img: true });
+    return;
+  }
+  c.imgBusy = true;
+  routerBusy = true;
+  servingRid = rid;
+  try { await sstvServeImages(rid, c.text); } catch (e) { addChatMsg('SSTV failed: ' + (e.message || e), 'sys'); }
+  routerBusy = false;
+  servingRid = null;
+  drainReqQueue();
+}
+
+function sstvRequest(rid) {
+  if (!State.images || State.role !== 'remote') return;
+  if (!lastRemote || lastRemote.rid !== rid) return;
+  if (sstvRx && sstvRx.rid === rid) return;
+  if (lastRemote.noImages) return;
+  addChatMsg('SSTV · requesting page images', 'sys');
+  sendFrame('IRQ', [rid]).catch(() => {}).finally(() => {
+    setTimeout(() => sstvRequest(rid), SSTV_REQUEST_INTERVAL_MS);
+  });
+}
+
+async function onRouterNak(rid, list) {
+  rid = String(rid || '');
+  const c = ServedCache.get(rid);
+  if (!c) return;
+  if (routerBusy) {                                   
+    if (!nakQueue.some(q => q.rid === rid)) nakQueue.push({ rid, list });
+    return;
+  }
+  routerBusy = true;
+  servingRid = rid;
+  try {
+    const seqs = String(list || '').split(',').map(x => parseInt(x, 10))
+      .filter(n => Number.isFinite(n) && n >= 0 && n < c.total).slice(0, 16);
+    addChatMsg('NAK · resending ' + seqs.length + ' pkt · ' + rid, 'sys');
+    for (const i of seqs) {
+      if (servingRid !== rid) break;
+      setXfer('Resending', 50, (i + 1) + '/' + c.total + ' · ' + rid);
+      await sendFrame('DATA', [rid, String(i), String(c.total), c.packets[i]]);
+    }
+    await sendFrame('END', [rid, c.title]);
+    setXfer(null);
+  } catch (e) {
+    addChatMsg('Resend error: ' + (e.message || e), 'sys');
+    setXfer(null);
+  }
+  routerBusy = false;
+  servingRid = null;
+  drainReqQueue();
+}
+
+function armRepair(p) {
+  if (!p || p._finished) return;
+  if (p._rt) clearTimeout(p._rt);
+  const bell = State.mod === 'bell202';
+  const wait = p.gotEnd ? (bell ? 1500 : 3500) : (bell ? 10000 : 60000);
+  p._rt = setTimeout(() => repairStep(p), wait);
+}
+
+function repairStep(p) {
+  p._rt = 0;
+  if (!p || p._finished || pending !== p) return;
+  const total = p.total || 0;
+  if (!total) return;                                   
+  const missing = [];
+  for (let i = 0; i < total; i++) if (!p.packets || p.packets[i] == null) missing.push(i);
+  if (!missing.length) { finishRemote(p); return; }     
+  if ((p.naks || 0) >= NAK_MAX_ROUNDS) { finishRemote(p); return; }   
+  p.naks = (p.naks || 0) + 1;
+  p.gotEnd = false;                                     
+  addChatMsg('Missing ' + missing.length + ' pkt — asking Router to resend (' + p.naks + '/' + NAK_MAX_ROUNDS + ')', 'sys');
+  setXfer('Repair', 85, missing.length + ' missing');
+  sendFrame('NAK', [p.rid, missing.slice(0, 12).join(',')])
+    .catch(() => {})
+    .then(() => armRepair(p));
+}
+
+function cancelPendingRequest(reason) {
+  const p = pending;
+  if (!p) return;
+  pending = null;
+  p._finished = true;
+  if (p._rt) clearTimeout(p._rt);
+  if (p.reject) p.reject(new Error(reason || 'Request cancelled'));
+}
+
+function waitForRouter(url) {
+  return new Promise((resolve, reject) => {
+    const rid = newRid();
+    pending = {
+      rid, url, packets: {}, total: 0, endTitle: null, gotEnd: false, acked: false,
+      confirmed: false, resolve, reject, _finished: false
+    };
+  });
+}
+
+let navigationToken = 0;
+
+async function navigate(value, options) {
+  const navToken = ++navigationToken;
+  const next = normalize(value);
+  if (!next) return;
+  const fromHistory = !!(options && options.fromHistory);
+  const tab = tabs.find(x => x.id === activeId);
+  const address = $('address-input');
+
+  if (next !== 'ab://welcome') {
+    const cached = PageCache.get(next);
+    if (State.role === 'router' && ((tab && tab.url === next && tab.html) || (cached && cached.html))) {
+      if (tab) {
+        if (fromHistory) tab.url = next; else rememberNavigation(tab, next);
+        if (cached && cached.html) {
+          tab.html = cached.html; tab.pageTitle = cached.title;
+          tab.title = titleFrom(next, cached.title);
+        }
+      }
+      address.value = next;
+      $('welcome').hidden = true; $('embedded').hidden = false;
+      $('relay-viewport').innerHTML = (tab && tab.html) || cached.html;
+      bindViewportLinks(); renderTabs();
+      setXfer('Done', 100, 'Cache');
+      setTimeout(() => setXfer(null), 500);
+      return;
+    }
+    if (State.role === 'remote' && pending) cancelPendingRequest('Superseded by a new request');
+    if (State.role === 'remote' && sstvRx) sstvEndRx(sstvRx);
+  }
+
+  if (tab) {
+    if (fromHistory) tab.url = next; else rememberNavigation(tab, next);
+    tab.pageTitle = null; tab.html = null;
+  }
+  address.value = next;
+
+  if (next === 'ab://welcome') {
+    if (tab) tab.title = 'Interacousta';
+    renderTabs();
+    $('welcome').hidden = false; $('embedded').hidden = true;
+    updateNavButtons(); setXfer(null);
+    return;
+  }
+
+  if (tab) tab.title = hostFrom(next) + '…';
+  renderTabs(); updateNavButtons();
+  $('welcome').hidden = true; $('embedded').hidden = false;
+  $('relay-viewport').innerHTML = '<div class="viewport-loading">Loading…</div>';
+
+  try {
+    await armMic();
+    if (!rxListening) await startListening();
+  } catch (err) {
+    $('relay-viewport').innerHTML = '<div class="viewport-loading">Microphone required.<br><span style="font-size:12px">' +
+      esc(err.message || 'Enable mic') + '</span></div>';
+    setXfer(null);
+    return;
+  }
+
+  if (State.role === 'router') {
+
+    setXfer('Loading', 30, hostFrom(next));
+    try {
+      const reader = 'https://r.jina.ai/http://' + next.replace(/^https?:\/\//, '');
+      const resp = await fetch(reader, { headers: { Accept: 'text/plain' } });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const text = await resp.text();
+      const tm = text.match(/^Title:\s*(.+)$/m) || text.match(/^#\s+(.+)$/m);
+      const pageTitle = (tm && tm[1].trim()) || hostFrom(next);
+      const body = text.slice(0, 8000);
+      const html = '<article class="doc"><h3>' + esc(pageTitle) +
+        '</h3><div class="doc-body">' + pageHTML(body) +
+        '</div><div class="doc-meta">Loaded as Router · network</div></article>';
+      PageCache.put(next, { title: pageTitle, html, body });
+      const cur = tabs.find(x => x.id === activeId);
+      if (cur && cur.url === next) {
+        cur.html = html; cur.pageTitle = pageTitle; cur.title = titleFrom(next, pageTitle);
+        $('relay-viewport').innerHTML = html; bindViewportLinks(); renderTabs();
+      }
+      setXfer('Done', 100, 'Ready');
+      setTimeout(() => setXfer(null), 500);
+    } catch (err) {
+      $('relay-viewport').innerHTML = '<div class="viewport-loading">Could not load.<br><span style="font-size:12px">' +
+        esc(err.message || 'Error') + '</span></div>';
+      setXfer(null);
+    }
+    return;
+  }
+
+  setXfer('Connecting', 10, hostFrom(next));
+  $('relay-viewport').innerHTML = '<div class="viewport-loading">Requesting from Router…<br><span style="font-size:12px">Offline · ' + (State.mod === 'bell202' ? 'Bell 202 · 1200 baud' : '4-FSK · ' + SYM_RATE + ' sym/s') + ' · page transfer</span></div>';
+  try {
+    const waitPromise = waitForRouter(next);
+    await sleep(100);
+    const rid = pending && pending.rid;
+    if (!rid) throw new Error('No request id');
+    lastRemote = { rid, url: next, tabId: activeId };
+    addChatMsg('Sending REQ · ' + hostFrom(next), 'sys');
+    await sendFrame('REQ', [rid, next.slice(0, 60)]);
+    setXfer('Connecting', 20, 'waiting for Router');
+    $('relay-viewport').innerHTML = '<div class="viewport-loading">Waiting for Router…<br><span style="font-size:12px">REQ sent · listening for COR / DATA / END</span></div>';
+    const result = await waitPromise;
+    if (navToken !== navigationToken) return;
+    PageCache.put(next, { title: result.title, html: result.html, body: result.body });
+    const cur = tabs.find(x => x.id === activeId);
+    if (cur) {
+      cur.html = result.html; cur.pageTitle = result.title;
+      cur.title = titleFrom(next, result.title); cur.url = next;
+      renderTabs();
+    }
+    $('relay-viewport').innerHTML = result.html;
+    bindViewportLinks();
+    setXfer('Done', 100, result.title.slice(0, 30));
+    setTimeout(() => setXfer(null), 600);
+    addChatMsg('Page received · ' + result.title.slice(0, 28), 'sys');
+  } catch (err) {
+    if (navToken !== navigationToken) return;
+    $('relay-viewport').innerHTML = '<div class="viewport-loading">No data from Router.<br><span style="font-size:12px">' +
+      esc(err.message || 'No response') +
+      '</span><br><span style="font-size:12px">Set the other device to <b>Router</b>, enable mic on both, keep speakers near the mics.</span></div>';
+    setXfer(null);
+    addChatMsg('Nav failed: ' + (err.message || err), 'sys');
+  }
+}
+
+function addChatMsg(text, kind) {
+  const d = document.createElement('div');
+  d.className = 'chat-msg ' + (kind || 'sys');
+  d.textContent = text;
+  $('chat-log').appendChild(d);
+  $('chat-log').scrollTop = $('chat-log').scrollHeight;
+}
+
+function setRole(role) {
+  State.role = role;
+  try { localStorage.setItem('ab-role', role); } catch(_){}
+  document.querySelectorAll('.role-btn').forEach(b => b.classList.toggle('active', b.dataset.role === role));
+  $('lab-readout').innerHTML = role === 'router'
+    ? '<b>Router</b> — this device loads pages from the network and delivers them over the acoustic link.'
+    : '<b>Remote</b> — fully offline. No network access. Pages arrive only over sound from a Router.';
+  updateLEDs();
+  if (role === 'router') {
+    armMic().then(() => startListening()).catch(() => {});
+  }
+}
+
+$('address-form').addEventListener('submit', e => { e.preventDefault(); navigate($('address-input').value); });
+$('go-btn').onclick = () => navigate($('address-input').value);
+$('example').onclick = () => navigate('https://example.com');
+$('home-chip').onclick = () => navigate('ab://welcome');
+$('refresh').onclick = () => {
+  const t = tabs.find(x => x.id === activeId);
+  if (t && t.url && t.url !== 'ab://welcome') navigate(t.url);
+};
+$('tab-add').onclick = () => {
+  const t = createTab('ab://welcome');
+  activeId = t.id; renderTabs(); showTabContent(t);
+};
+function moveHistory(delta) {
+  const t = tabs.find(x => x.id === activeId);
+  if (!t || !Array.isArray(t.history)) return;
+  const ni = t.historyIndex + delta;
+  if (ni < 0 || ni >= t.history.length) return;
+  t.historyIndex = ni;
+  updateNavButtons();
+  navigate(t.history[ni], { fromHistory: true });
+}
+$('back').onclick = () => moveHistory(-1);
+$('forward').onclick = () => moveHistory(1);
+
+document.querySelectorAll('.bm-btn').forEach(btn => {
+  btn.onclick = () => navigate(btn.dataset.url);
+});
+$('fav-toggle').onclick = () => {
+  const open = $('bm-bar').classList.toggle('open');
+  $('fav-toggle').classList.toggle('active', open);
+  $('fav-toggle').textContent = open ? '★' : '☆';
+};
+
+$('open-settings').onclick = () => $('settings').classList.add('open');
+$('close-settings').onclick = () => $('settings').classList.remove('open');
+$('settings').addEventListener('click', e => { if (e.target === $('settings')) $('settings').classList.remove('open'); });
+document.querySelectorAll('.role-btn').forEach(btn => {
+  btn.onclick = () => setRole(btn.dataset.role);
+});
+
+document.querySelectorAll('.mod-btn').forEach(btn => {
+  btn.onclick = () => setMod(btn.dataset.mod);
+});
+setMod(State.mod);
+
+document.querySelectorAll('.img-btn').forEach(btn => { btn.onclick = () => setImages(btn.dataset.img === 'on'); });
+document.querySelectorAll('.img-btn').forEach(b => b.classList.toggle('active', (b.dataset.img === 'on') === State.images));
+
+$('arm-audio').onclick = async () => {
+  try {
+    await armMic();
+    await startListening();
+    $('lab-readout').innerHTML = 'Microphone enabled. <b>' + (State.mod === 'bell202' ? 'Bell 202' : '4-FSK') + '</b> listening active.';
+    addChatMsg('Interacousta listening started', 'sys');
+  } catch (err) {
+    $('lab-readout').textContent = 'Microphone access denied.';
+  }
+};
+$('stop-audio').onclick = () => {
+  stopListening();
+  $('lab-readout').textContent = 'Microphone disabled.';
+};
+
+$('chat-fab').onclick = () => {
+  $('chat-panel').classList.toggle('open');
+  if ($('chat-panel').classList.contains('open')) $('chat-input').focus();
+};
+$('chat-close').onclick = () => $('chat-panel').classList.remove('open');
+$('chat-listen').onclick = async () => {
+  if (rxListening) await stopListening();
+  else {
+    try { await startListening(); }
+    catch (e) { addChatMsg('Mic failed: ' + (e.message || e), 'sys'); }
+  }
+};
+$('chat-form').onsubmit = async e => {
+  e.preventDefault();
+  const text = $('chat-input').value.trim();
+  if (!text) return;
+  $('chat-input').value = '';
+  try {
+    await armMic();
+    if (!rxListening) await startListening();
+    await sendFrame('CHAT', [text.slice(0, 70)]);
+    addChatMsg(text, 'me');
+  } catch (err) {
+    addChatMsg('Send failed: ' + (err.message || err), 'sys');
+  }
+};
+
+['pointerdown', 'keydown', 'touchstart'].forEach(ev => {
+  document.addEventListener(ev, () => {
+    try {
+      if (txCtx && txCtx.state === 'suspended') txCtx.resume();
+      if (rxDecodeCtx && rxDecodeCtx.state === 'suspended') rxDecodeCtx.resume();
+      if (State.role === 'router' && !rxListening && State.audioReady) startListening();
+    } catch(_){}
+  }, { passive: true });
+});
+
+const first = createTab('ab://welcome');
+activeId = first.id;
+renderTabs();
+showTabContent(first);
+setRole(State.role);
+updateLEDs();
+</script>
+</body>
+</html>
