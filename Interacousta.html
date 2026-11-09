@@ -385,8 +385,16 @@
           <button type="button" class="img-btn" data-img="on">On</button>
         </div>
         <div class="hint" style="margin-top:8px">
-          When On, the Router follows each page with up to 10 page images as Robot 36 SSTV (~37 s per pass). Images are sent in strict order 1→10, then 1→10 again. The Remote merges both rounds and lists any image numbers still missing. Set On on both devices. Off keeps pages text-only.
+          When On, the Router follows each page with up to 10 page images as Robot 36 SSTV (~37 s per pass). Set the pass count below to send one pass faster or two passes for improved coverage. Set On on both devices. Off keeps pages text-only.
         </div>
+      </div>
+      <div class="field">
+        <label>SSTV passes</label>
+        <div class="seg">
+          <button type="button" class="sstv-pass-btn" data-passes="1">1 pass</button>
+          <button type="button" class="sstv-pass-btn" data-passes="2">2 passes</button>
+        </div>
+        <div class="hint" style="margin-top:8px">One pass is faster; a second pass lets the Remote merge additional clean rows when the first image transfer is noisy.</div>
       </div>
       <div class="field">
         <label>Audio</label>
@@ -424,8 +432,8 @@ const SYNC  = [0xD3, 0x91];
 const TX_AMPLITUDE = 0.55;
 const MAX_PAGE_CHARS = 20000; 
 const PACKET_CHARS = 28;      
-const INTER_FRAME_MS = 1100;  
-const BELL_GAP_MS = 350;      
+const INTER_FRAME_MS = 2000;  // longer quiet interval between 4-FSK packets
+const BELL_GAP_MS = 700;      // longer quiet interval between Bell 202 packets
 const BELL_PACKET_CHARS = 64;
 const PROTOCOL_RETRY_LIMIT = 10; // applies to every acoustic frame send and repair cycle
 
@@ -433,6 +441,7 @@ const PROTOCOL_RETRY_LIMIT = 10; // applies to every acoustic frame send and rep
 const State = {
   role: (localStorage.getItem('ab-role') || 'router'),
   images: (localStorage.getItem('ab-images') === 'on'),
+  sstvPasses: (localStorage.getItem('ab-sstv-passes') === '1' ? 1 : 2),
   mod: (function () {
     const m = localStorage.getItem('ab-mod') || '';
     if (m === 'bell202') return 'bell202';
@@ -2202,15 +2211,16 @@ async function sstvServeImages(rid, pageText) {
       ready = (await waiting) === 'IRD';
     }
     if (!ready) { addChatMsg('SSTV · Remote did not answer (Images On there?) — skipped', 'sys'); setXfer(null); return; }
-    // Always make exactly two complete, ordered rounds: 1..N, then 1..N.
-    // The Remote decides which slots are complete after both rounds.
-    for (let pass = 1; pass <= 2; pass++) {
-      addChatMsg('SSTV · round ' + pass + '/2 · sending images 1→' + frames.length, 'sys');
+    const passCount = State.sstvPasses;
+    // Send one or two complete, ordered rounds: 1..N (and optionally 1..N again).
+    // The Remote merges the rounds it receives and reports any incomplete slots.
+    for (let pass = 1; pass <= passCount; pass++) {
+      addChatMsg('SSTV · round ' + pass + '/' + passCount + ' · sending images 1→' + frames.length, 'sys');
       for (let i = 0; i < frames.length; i++) {
         // Announce the one-based slot and round, then wait for the Remote to arm that slot.
         // This prevents tail audio from the previous image being assigned to the next slot.
         const imageNo = i + 1;
-        addChatMsg('SSTV · announce image ' + imageNo + '/' + frames.length + ' · round ' + pass + '/2', 'sys');
+        addChatMsg('SSTV · announce image ' + imageNo + '/' + frames.length + ' · round ' + pass + '/' + passCount, 'sys');
         let accepted = false;
         for (let attempt = 1; attempt <= SSTV_RETRY_LIMIT && !accepted; attempt++) {
           // Repeat the numbered announcement before every retry so the Remote can re-arm the exact slot.
@@ -2223,10 +2233,10 @@ async function sstvServeImages(rid, pageText) {
             continue;
           }
           await sleep(SSTV_GAP_MS);
-          setXfer('SSTV', 94 + ((pass - 1) * frames.length + i + 1) / (frames.length * 2) * 5,
-            'Image ' + imageNo + '/' + frames.length + ' · round ' + pass + '/2 · try ' + attempt + '/' + SSTV_RETRY_LIMIT + ' · ~37 s');
+          setXfer('SSTV', 94 + ((pass - 1) * frames.length + i + 1) / (frames.length * passCount) * 5,
+            'Image ' + imageNo + '/' + frames.length + ' · round ' + pass + '/' + passCount + ' · try ' + attempt + '/' + SSTV_RETRY_LIMIT + ' · ~37 s');
           await sstvTransmit(frames[i]);
-          setXfer('SSTV', 98, 'Round ' + pass + '/2 · image ' + imageNo + ' · waiting for ACK');
+          setXfer('SSTV', 98, 'Round ' + pass + '/' + passCount + ' · image ' + imageNo + ' · waiting for ACK');
           const r = await sstvWait(['IOK', 'INO'], id, imageNo, SSTV_ACK_WAIT_MS, pass);
           if (r === 'IOK') {
             accepted = true;
@@ -2239,10 +2249,10 @@ async function sstvServeImages(rid, pageText) {
       }
     }
     for (let attempt = 0; attempt < SSTV_RETRY_LIMIT; attempt++) {
-      await sendFrame('IEND', [id, '2']);
+      await sendFrame('IEND', [id, String(passCount)]);
       if (attempt < SSTV_RETRY_LIMIT - 1) await sleep(900);
     }
-    setXfer('Done', 100, 'Two image rounds sent · 10 retries enabled');
+    setXfer('Done', 100, passCount + ' image ' + (passCount === 1 ? 'pass' : 'passes') + ' sent · 10 retries enabled');
     setTimeout(() => setXfer(null), 900);
   } catch (e) {
     addChatMsg('SSTV failed: ' + (e.message || e), 'sys');
@@ -2291,7 +2301,8 @@ function sstvGalleryHTML(rx) {
     } else cells.push('<div class="sstv-cell"><div class="sstv-pending">' + (s && s.failed ? 'Not received' : 'Waiting…') + '</div></div>');
   }
   const missing = Array.isArray(rx.missing) && rx.missing.length ? '<div class="sstv-pending" style="margin-top:8px">Missing images: ' + rx.missing.join(', ') + '</div>' : '';
-  return '<div class="sstv-gallery" data-sstv-gallery><h4>Images <span class="sstv-badge">SSTV · 2 rounds</span></h4><div class="sstv-grid c' +
+  const rounds = rx.round || 1;
+  return '<div class="sstv-gallery" data-sstv-gallery><h4>Images <span class="sstv-badge">SSTV · ' + rounds + ' ' + (rounds === 1 ? 'round' : 'rounds') + '</span></h4><div class="sstv-grid c' +
     Math.min(5, rx.count) + '">' + cells.join('') + '</div>' + missing + '</div>';
 }
 function sstvApplyGallery(rx) {
@@ -2448,6 +2459,14 @@ function setImages(on) {
   try { localStorage.setItem('ab-images', on ? 'on' : 'off'); } catch (_) {}
   document.querySelectorAll('.img-btn').forEach(b => b.classList.toggle('active', (b.dataset.img === 'on') === !!on));
   if (!on && sstvRx) sstvEndRx(sstvRx);
+}
+
+function setSSTVPasses(passes) {
+  passes = Number(passes) === 1 ? 1 : 2;
+  State.sstvPasses = passes;
+  try { localStorage.setItem('ab-sstv-passes', String(passes)); } catch (_) {}
+  document.querySelectorAll('.sstv-pass-btn').forEach(b =>
+    b.classList.toggle('active', Number(b.dataset.passes) === passes));
 }
 
 let pending = null;       
@@ -2993,6 +3012,10 @@ setMod(State.mod);
 
 document.querySelectorAll('.img-btn').forEach(btn => { btn.onclick = () => setImages(btn.dataset.img === 'on'); });
 document.querySelectorAll('.img-btn').forEach(b => b.classList.toggle('active', (b.dataset.img === 'on') === State.images));
+document.querySelectorAll('.sstv-pass-btn').forEach(btn => {
+  btn.onclick = () => setSSTVPasses(btn.dataset.passes);
+});
+setSSTVPasses(State.sstvPasses);
 
 $('arm-audio').onclick = async () => {
   try {
